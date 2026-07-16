@@ -392,10 +392,6 @@ def render_topbar() -> None:
                     <div class="labmind-sub">Inventory-aware label intelligence</div>
                 </div>
             </div>
-            <div class="labmind-status">
-                <span class="status-dot"></span>
-                UI prototype
-            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -410,12 +406,6 @@ def render_hero() -> None:
             LabMind gives the team a clean review surface for reagent label OCR,
             extracted fields, confidence checks, and the next integration step.
         </p>
-        <div class="chip-row">
-            <span class="chip">Streamlit UI</span>
-            <span class="chip">Image upload</span>
-            <span class="chip">Mock JSON</span>
-            <span class="chip">CS Team B</span>
-        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -501,7 +491,7 @@ def main() -> None:
         st.markdown('<div class="section-label">Output</div>', unsafe_allow_html=True)
         st.markdown('<h2 class="panel-title">Recognition result</h2>', unsafe_allow_html=True)
         st.markdown(
-            '<p class="panel-copy">Mock result view prepared for the OCR script handoff.</p>',
+            '<p class="panel-copy">Review the structured fields recognized from the selected label.</p>',
             unsafe_allow_html=True,
         )
 
@@ -520,12 +510,6 @@ def main() -> None:
                     json.dumps(MOCK_RESULT, indent=2),
                     language="json",
                 )
-
-    st.markdown(
-        '<div class="footer-note">LabMind prototype by CS Team B. Prepared for Streamlit, OCR script, and inventory CSV integration.</div>',
-        unsafe_allow_html=True,
-    )
-
 
 if __name__ == "__main__":
     main()
