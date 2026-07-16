@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="LabMind prototype for turning reagent labels into structured inventory data."
+    />
+    <title>LabMind</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">LM</div>
+          <div>
+            <div class="brand-name">LabMind</div>
+            <div class="brand-subtitle">Inventory-aware label intelligence</div>
+          </div>
+        </div>
+        <div class="prototype-status"><span aria-hidden="true"></span>UI prototype</div>
+      </header>
+
+      <section class="hero" aria-labelledby="page-title">
+        <p class="eyebrow">CS Team B · Label intelligence</p>
+        <h1 id="page-title">Turn lab labels into structured inventory data.</h1>
+        <p class="hero-copy">
+          LabMind gives the team a clean review surface for reagent label OCR,
+          extracted fields, confidence checks, and the next integration step.
+        </p>
+        <div class="chips" aria-label="Prototype capabilities">
+          <span>Static UI</span><span>Image upload</span><span>Mock JSON</span><span>CS Team B</span>
+        </div>
+      </section>
+
+      <section class="workspace" aria-label="Label recognition workspace">
+        <article class="panel">
+          <div class="section-label">Input</div>
+          <h2>Label preview</h2>
+          <p class="panel-copy">Upload a reagent bottle label for the review screen.</p>
+
+          <label class="drop-zone" id="drop-zone" for="label-image">
+            <input
+              id="label-image"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+            />
+            <span class="upload-icon" aria-hidden="true">↑</span>
+            <strong>Choose a label image</strong>
+            <span>PNG, JPG, or WebP · processed in this browser</span>
+          </label>
+
+          <div class="preview-empty" id="preview-empty">No image selected</div>
+          <figure class="preview" id="preview" hidden>
+            <img id="preview-image" alt="Uploaded reagent label preview" />
+            <figcaption id="file-name"></figcaption>
+          </figure>
+          <dl class="metrics metrics-three" id="file-metrics" hidden>
+            <div><dt>Type</dt><dd id="file-type">—</dd></div>
+            <div><dt>Size</dt><dd id="file-size">—</dd></div>
+            <div><dt>Uploaded</dt><dd id="upload-time">—</dd></div>
+          </dl>
+        </article>
+
+        <article class="panel">
+          <div class="section-label">Output</div>
+          <h2>Recognition result</h2>
+          <p class="panel-copy">Mock result view prepared for the OCR script handoff.</p>
+
+          <div class="result-placeholder" id="result-placeholder">
+            Result will appear after an image is selected.
+          </div>
+
+          <div id="result" hidden>
+            <div class="success-banner"><span aria-hidden="true">✓</span>Ready for inventory match</div>
+            <dl class="metrics metrics-two">
+              <div><dt>Confidence</dt><dd>92%</dd></div>
+              <div><dt>Status</dt><dd>Success</dd></div>
+            </dl>
+
+            <section class="result-card" aria-label="Recognized label data">
+              <div class="result-pills"><span>92% confidence</span><span>Success</span></div>
+              <h3>Ethanol</h3>
+              <p>Sigma-Aldrich · Catalog 459836</p>
+              <dl class="details">
+                <div><dt>Expiration</dt><dd>2027-04-30</dd></div>
+                <div><dt>Quantity</dt><dd>500 mL</dd></div>
+                <div><dt>Storage</dt><dd>Room temperature</dd></div>
+              </dl>
+            </section>
+
+            <details>
+              <summary>Raw JSON</summary>
+              <pre><code id="raw-json"></code></pre>
+            </details>
+          </div>
+        </article>
+      </section>
+
+      <footer>
+        LabMind prototype by CS Team B. Prepared for OCR script and inventory CSV integration.
+      </footer>
+    </main>
+  </body>
+</html>
