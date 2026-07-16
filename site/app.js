@@ -14,13 +14,16 @@ const mockResult = {
 
 const input = document.querySelector("#label-image");
 const dropZone = document.querySelector("#drop-zone");
-const previewEmpty = document.querySelector("#preview-empty");
 const preview = document.querySelector("#preview");
 const previewImage = document.querySelector("#preview-image");
+const scanStage = document.querySelector("#scan-stage");
+const fileMeta = document.querySelector("#file-meta");
 const fileName = document.querySelector("#file-name");
-const fileMetrics = document.querySelector("#file-metrics");
+const fileProperties = document.querySelector("#file-properties");
 const resultPlaceholder = document.querySelector("#result-placeholder");
 const result = document.querySelector("#result");
+const confirmationNote = document.querySelector("#confirmation-note");
+const confirmButton = document.querySelector("#confirm-result");
 
 document.querySelector("#raw-json").textContent = JSON.stringify(mockResult, null, 2);
 
@@ -30,6 +33,10 @@ function formatFileSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatFileType(file) {
+  return (file.type || "Image").replace("image/", "").toUpperCase();
+}
+
 function showFile(file) {
   if (!file || !file.type.startsWith("image/")) return;
 
@@ -37,18 +44,18 @@ function showFile(file) {
   reader.addEventListener("load", () => {
     previewImage.src = reader.result;
     fileName.textContent = file.name;
-    document.querySelector("#file-type").textContent = file.type || "Image";
-    document.querySelector("#file-size").textContent = formatFileSize(file.size);
-    document.querySelector("#upload-time").textContent = new Intl.DateTimeFormat([], {
+    fileProperties.textContent = `${formatFileType(file)} - ${formatFileSize(file.size)} - ${new Intl.DateTimeFormat([], {
       hour: "2-digit",
       minute: "2-digit",
-    }).format(new Date());
+    }).format(new Date())}`;
 
-    previewEmpty.hidden = true;
+    dropZone.hidden = true;
     preview.hidden = false;
-    fileMetrics.hidden = false;
+    fileMeta.hidden = false;
     resultPlaceholder.hidden = true;
     result.hidden = false;
+    confirmationNote.hidden = true;
+    scanStage.classList.add("has-file");
   });
   reader.readAsDataURL(file);
 }
@@ -70,3 +77,9 @@ for (const eventName of ["dragleave", "drop"]) {
 }
 
 dropZone.addEventListener("drop", (event) => showFile(event.dataTransfer.files[0]));
+
+confirmButton.addEventListener("click", () => {
+  confirmationNote.hidden = false;
+  confirmButton.textContent = "Result confirmed";
+  confirmButton.disabled = true;
+});

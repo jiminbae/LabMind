@@ -7,94 +7,129 @@
       name="description"
       content="LabMind turns reagent labels into structured inventory data."
     />
-    <title>LabMind</title>
+    <title>LabMind | Label Intelligence</title>
     <link rel="stylesheet" href="./styles.css" />
     <script src="./app.js" defer></script>
   </head>
   <body>
     <main class="shell">
       <header class="topbar">
-        <div class="brand">
+        <div class="brand-lockup">
           <div class="logo" aria-hidden="true">LM</div>
           <div>
             <div class="brand-name">LabMind</div>
-            <div class="brand-subtitle">Inventory-aware label intelligence</div>
+            <div class="brand-subtitle">Laboratory label intelligence</div>
           </div>
         </div>
+        <div class="demo-badge">Demo mode</div>
       </header>
 
-      <section class="hero" aria-labelledby="page-title">
-        <h1 id="page-title">Turn lab labels into structured inventory data.</h1>
-        <p class="hero-copy">
-          LabMind gives the team a clean review surface for reagent label OCR,
-          extracted fields, confidence checks, and the next integration step.
+      <section class="intro" aria-labelledby="page-title">
+        <div class="intro-kicker">Reagent intake workspace</div>
+        <h1 id="page-title">Read the label. Review the record.</h1>
+        <p>
+          Upload a reagent label to create a structured inventory record ready for review.
         </p>
       </section>
 
+      <div class="workspace-heading">Label analysis</div>
+
       <section class="workspace" aria-label="Label recognition workspace">
-        <article class="panel">
-          <div class="section-label">Input</div>
-          <h2>Label preview</h2>
-          <p class="panel-copy">Upload a reagent bottle label for the review screen.</p>
+        <article class="panel input-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-eyebrow">Image input</div>
+              <h2>Scan a reagent label</h2>
+            </div>
+            <div class="panel-index" aria-label="Step 1">01</div>
+          </div>
 
-          <label class="drop-zone" id="drop-zone" for="label-image">
-            <input
-              id="label-image"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-            />
-            <span class="upload-icon" aria-hidden="true">↑</span>
-            <strong>Choose a label image</strong>
-            <span>PNG, JPG, or WebP · processed in this browser</span>
-          </label>
+          <div class="scan-stage" id="scan-stage">
+            <label class="drop-zone" id="drop-zone" for="label-image">
+              <input
+                id="label-image"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+              />
+              <span class="scan-mark" aria-hidden="true"></span>
+              <strong>Choose a label image</strong>
+              <span class="drop-zone-copy">PNG, JPG, JPEG, or WEBP</span>
+            </label>
+            <figure class="preview" id="preview" hidden>
+              <img id="preview-image" alt="Uploaded reagent label preview" />
+            </figure>
+          </div>
 
-          <div class="preview-empty" id="preview-empty">No image selected</div>
-          <figure class="preview" id="preview" hidden>
-            <img id="preview-image" alt="Uploaded reagent label preview" />
-            <figcaption id="file-name"></figcaption>
-          </figure>
-          <dl class="metrics metrics-three" id="file-metrics" hidden>
-            <div><dt>Type</dt><dd id="file-type">—</dd></div>
-            <div><dt>Size</dt><dd id="file-size">—</dd></div>
-            <div><dt>Uploaded</dt><dd id="upload-time">—</dd></div>
-          </dl>
+          <div class="file-meta" id="file-meta" hidden>
+            <span class="file-name" id="file-name"></span>
+            <span class="file-properties" id="file-properties"></span>
+          </div>
         </article>
 
-        <article class="panel">
-          <div class="section-label">Output</div>
-          <h2>Recognition result</h2>
-          <p class="panel-copy">Review the structured fields recognized from the selected label.</p>
+        <article class="panel result-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-eyebrow">Structured output</div>
+              <h2>Review extracted record</h2>
+            </div>
+            <div class="panel-index" aria-label="Step 2">02</div>
+          </div>
 
-          <div class="result-placeholder" id="result-placeholder">
-            Result will appear after an image is selected.
+          <div class="result-empty" id="result-placeholder">
+            <span class="skeleton skeleton-short"></span>
+            <span class="skeleton"></span>
+            <span class="skeleton"></span>
+            <p>Analysis appears here after a label is selected.</p>
           </div>
 
           <div id="result" hidden>
-            <div class="success-banner"><span aria-hidden="true">✓</span>Ready for inventory match</div>
-            <dl class="metrics metrics-two">
-              <div><dt>Confidence</dt><dd>92%</dd></div>
-              <div><dt>Status</dt><dd>Success</dd></div>
+            <div class="result-state">Ready for inventory match</div>
+            <h3>Ethanol</h3>
+            <p class="result-reference">Sigma-Aldrich - Catalog 459836</p>
+
+            <div class="confidence-wrap">
+              <div class="confidence-label">
+                <span>Recognition confidence</span>
+                <strong>92%</strong>
+              </div>
+              <div class="confidence-track" aria-label="Recognition confidence 92 percent">
+                <span class="confidence-fill"></span>
+              </div>
+            </div>
+
+            <dl class="field-grid">
+              <div class="field-item">
+                <dt>Expiration</dt>
+                <dd>2027-04-30</dd>
+              </div>
+              <div class="field-item">
+                <dt>Quantity</dt>
+                <dd>500 mL</dd>
+              </div>
+              <div class="field-item">
+                <dt>Storage</dt>
+                <dd>Room temperature</dd>
+              </div>
+              <div class="field-item">
+                <dt>OCR status</dt>
+                <dd>Success</dd>
+              </div>
             </dl>
 
-            <section class="result-card" aria-label="Recognized label data">
-              <div class="result-pills"><span>92% confidence</span><span>Success</span></div>
-              <h3>Ethanol</h3>
-              <p>Sigma-Aldrich · Catalog 459836</p>
-              <dl class="details">
-                <div><dt>Expiration</dt><dd>2027-04-30</dd></div>
-                <div><dt>Quantity</dt><dd>500 mL</dd></div>
-                <div><dt>Storage</dt><dd>Room temperature</dd></div>
-              </dl>
-            </section>
+            <button class="confirm-button" id="confirm-result" type="button">
+              Confirm result
+            </button>
+            <p class="confirmation-note" id="confirmation-note" role="status" hidden>
+              Mock inventory record prepared.
+            </p>
 
             <details>
-              <summary>Raw JSON</summary>
+              <summary>View raw JSON</summary>
               <pre><code id="raw-json"></code></pre>
             </details>
           </div>
         </article>
       </section>
-
     </main>
   </body>
 </html>
