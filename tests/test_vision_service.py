@@ -70,14 +70,14 @@ class VisionServiceTests(unittest.TestCase):
         self.assertEqual(image_input["type"], "input_image")
         self.assertTrue(image_input["image_url"].startswith("data:image/png;base64,"))
 
-    def test_missing_catalog_number_is_a_failed_result(self) -> None:
+    def test_missing_catalog_number_preserves_partial_fields(self) -> None:
         client = FakeClient(
             parsed=LabelExtraction(
                 catalog_number=None,
-                lot_number="LOT-9",
-                expiry_date=None,
-                brand=None,
-                product_name=None,
+                lot_number=" LOT-9 ",
+                expiry_date="EXP 09/26",
+                brand=" Sigma-Aldrich ",
+                product_name="Ethanol",
                 confidence=0.4,
             )
         )
@@ -86,6 +86,12 @@ class VisionServiceTests(unittest.TestCase):
 
         self.assertEqual(result.status, ResultStatus.FAILED)
         self.assertIn("Catalog number", result.error_message)
+        self.assertIsNone(result.catalog_number)
+        self.assertEqual(result.lot_number, "LOT-9")
+        self.assertEqual(result.expiry_date, "2026-09-30")
+        self.assertEqual(result.brand, "Sigma-Aldrich")
+        self.assertEqual(result.product_name, "Ethanol")
+        self.assertEqual(result.confidence, 0.4)
 
     def test_api_exception_becomes_a_failed_result(self) -> None:
         client = FakeClient(error=TimeoutError("simulated"))

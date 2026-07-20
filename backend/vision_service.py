@@ -138,16 +138,31 @@ def _parse_live_response(parsed: LabelExtraction | None) -> OCRResult:
     catalog_number = (
         parsed.catalog_number.strip().upper() if parsed.catalog_number else None
     )
+    lot_number = parsed.lot_number.strip() if parsed.lot_number else None
+    expiry_date = normalize_expiry_date(parsed.expiry_date)
+    brand = parsed.brand.strip() if parsed.brand else None
+    product_name = parsed.product_name.strip() if parsed.product_name else None
+    confidence = float(parsed.confidence)
+
     if not catalog_number:
-        return _failed("Catalog number could not be recognized.")
+        return OCRResult(
+            catalog_number=None,
+            lot_number=lot_number,
+            expiry_date=expiry_date,
+            brand=brand,
+            product_name=product_name,
+            confidence=confidence,
+            status=ResultStatus.FAILED,
+            error_message="Catalog number could not be recognized.",
+        )
 
     return OCRResult(
         catalog_number=catalog_number,
-        lot_number=parsed.lot_number.strip() if parsed.lot_number else None,
-        expiry_date=normalize_expiry_date(parsed.expiry_date),
-        brand=parsed.brand.strip() if parsed.brand else None,
-        product_name=parsed.product_name.strip() if parsed.product_name else None,
-        confidence=float(parsed.confidence),
+        lot_number=lot_number,
+        expiry_date=expiry_date,
+        brand=brand,
+        product_name=product_name,
+        confidence=confidence,
         status=ResultStatus.SUCCESS,
     )
 

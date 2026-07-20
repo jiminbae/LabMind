@@ -94,6 +94,25 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(result.error_message, "simulated OCR failure")
         self.assertIsNone(result.inventory)
 
+    def test_failed_ocr_preserves_partial_fields_for_the_ui(self) -> None:
+        failed_ocr = OCRResult(
+            lot_number="AC45739",
+            expiry_date="2026-10-31",
+            product_name="HYDROCHLORIC ACID",
+            confidence=0.74,
+            status=ResultStatus.FAILED,
+            error_message="Catalog number could not be recognized.",
+        )
+
+        result = analyze_label("unused.png", ocr_result=failed_ocr, today=TODAY)
+
+        self.assertEqual(result.status, ResultStatus.FAILED)
+        self.assertEqual(result.ocr.lot_number, "AC45739")
+        self.assertEqual(result.ocr.expiry_date, "2026-10-31")
+        self.assertEqual(result.ocr.product_name, "HYDROCHLORIC ACID")
+        self.assertEqual(result.ocr.confidence, 0.74)
+        self.assertIsNone(result.inventory)
+
     def test_success_without_catalog_number_becomes_failure(self) -> None:
         result = analyze_label(
             "unused.png",

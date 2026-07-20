@@ -1,0 +1,6 @@
+image_number,file_name,expected_catalog_number,actual_catalog_number,lot_number,expiry_date,brand,product_name,confidence,pipeline_status,catalog_match,manual_review,notes
+1,截屏2026-07-18 19.46.43.png,NOT_VISIBLE,,7439,2017-09-30,,PBS 10X,0.80,failed,yes,no,Catalog number is not visible; partial OCR fields were retained
+2,截屏2026-07-18 19.48.34.png,NOT_VISIBLE,,AC45739,2026-10-31,,HYDROCHLORIC ACID,0.74,failed,yes,no,CAS 7667-01-0 was correctly not treated as a catalog number
+3,截屏2026-07-18 19.51.50.png,NOT_VISIBLE,,0001234,2026-09-13,,ALCOHOL,0.99,failed,pending,yes,Confirm catalog absence and date against the source label
+4,截屏2026-07-18 19.57.01.png,156248-100G,156248-100G,STBG8398,,SIGMA-ALDRICH,Sodium ethoxide,0.99,success,yes,no,OCR succeeded; catalog is not present in the sample inventory or product dataset
+5,截屏2026-07-18 19.57.56.png,270741-2L,270741-2L,SHBJ3763,,SIGMA-ALDRICH,Reagent Alcohol for HPLC,0.98,success,yes,no,OCR succeeded; catalog is not present in the sample inventory or product dataset
