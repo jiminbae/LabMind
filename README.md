@@ -1,28 +1,82 @@
 # LabMind
 
-Streamlit UI prototype for the CS Team B role.
+This README is available in [English](#english), [ÖĞÎÄ](#ÖĞÎÄ) and [???](#???).
 
-The repository also includes a static browser version in `site/` for GitHub
-Pages. It preserves the image preview and mock recognition flow without running
-Python on the server.
+## English
 
-## Run
+My part of LabMind provides the image-recognition backend and connects it to the Streamlit interface so a reagent-label image can be converted into structured OCR, inventory and expiry data.
+
+### Run locally
 
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## GitHub Pages
+The app uses mock recognition by default. For live recognition, copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml`, add the provider settings and API key, and set `LABMIND_VISION_MODE = "live"`. Never commit the secrets file.
 
-Pushes that change `site/` on the `frontend` branch deploy through
-`.github/workflows/deploy-pages.yml`. The repository owner must select
-**GitHub Actions** under **Settings â†’ Pages â†’ Build and deployment** once.
+### Current progress
 
-## Current Scope
+- Backend OCR and structured-result pipeline completed
+- Streamlit upload, preview, analysis and result display connected to the backend
+- Partial OCR results, alternative candidates and error states supported
+- Automated test suite passing; deployment configuration and CS B handoff guide included
+- `site/` remains a static GitHub Pages demo and does not run the Python backend
 
-- Image file upload
-- Upload success display
-- Uploaded image preview
-- Mock OCR JSON result display
-- Basic recognized-field table for later integration with CS Team A
+See [CSB_INTEGRATION.md](CSB_INTEGRATION.md) for field mappings, deployment settings and verification steps.
+
+---
+
+## ÖĞÎÄ
+
+ÎÒ¸ºÔğµÄ LabMind ²¿·ÖÌá¹©Í¼ÏñÊ¶±ğºó¶Ë£¬²¢ÒÑÁ¬½Óµ½ Streamlit ½çÃæ£¬¿É½«ÊÔ¼Á±êÇ©Í¼Æ¬×ª»»Îª½á¹¹»¯µÄ OCR¡¢¿â´æºÍÓĞĞ§ÆÚÊı¾İ¡£
+
+### ±¾µØÔËĞĞ
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Ó¦ÓÃÄ¬ÈÏÊ¹ÓÃÄ£ÄâÊ¶±ğ¡£ÈôÒªÆôÓÃÕæÊµÊ¶±ğ£¬Çë½« `.streamlit/secrets.toml.example` ¸´ÖÆÎª `.streamlit/secrets.toml`£¬ÌîĞ´·şÎñÉÌÅäÖÃºÍ API ÃÜÔ¿£¬²¢ÉèÖÃ `LABMIND_VISION_MODE = "live"`¡£ÇëÎğÌá½»ÃÜÔ¿ÎÄ¼ş¡£
+
+### µ±Ç°½ø¶È
+
+- ºó¶Ë OCR ºÍ½á¹¹»¯½á¹ûÁ÷³ÌÒÑÍê³É
+- Streamlit µÄÉÏ´«¡¢Ô¤ÀÀ¡¢·ÖÎöºÍ½á¹ûÕ¹Ê¾ÒÑÁ¬½Óºó¶Ë
+- ÒÑÖ§³Ö²¿·ÖÊ¶±ğ½á¹û¡¢ºòÑ¡½á¹ûºÍ´íÎó×´Ì¬
+- ×Ô¶¯²âÊÔÒÑÍ¨¹ı£¬²¢°üº¬²¿ÊğÅäÖÃÓë CS B ¶Ô½ÓËµÃ÷
+- `site/` ÈÔÊÇ¾²Ì¬ GitHub Pages ÑİÊ¾°æ£¬²»ÄÜÔËĞĞ Python ºó¶Ë
+
+×Ö¶ÎÓ³Éä¡¢²¿ÊğÉèÖÃºÍÑéÖ¤²½Öè¼û [CSB_INTEGRATION.md](CSB_INTEGRATION.md)¡£
+
+---
+
+## ???
+
+?? ??? LabMind ??? ??? ?? ???? ???? ?? Streamlit ??? ???? ?? ?? ???? ???? OCR, ?? ? ???? ???? ?????.
+
+### ?? ??
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+?? ????? ?? ??? ?????. ?? ??? ????? `.streamlit/secrets.toml.example`? `.streamlit/secrets.toml`? ???? ??? ??? API ?? ??? ? `LABMIND_VISION_MODE = "live"`? ?????. ?? ?? ??? ???? ???.
+
+### ?? ?? ??
+
+- ??? OCR ? ??? ?? ????? ??
+- Streamlit ???, ????, ?? ? ?? ??? ???? ??
+- ?? OCR ??, ?? ?? ? ?? ?? ??
+- ?? ??? ??, ?? ?? ? CS B ???? ?? ??
+- `site/`? ?? GitHub Pages ???? Python ???? ???? ??
+
+?? ??, ?? ?? ? ?? ??? [CSB_INTEGRATION.md](CSB_INTEGRATION.md)? ?????.

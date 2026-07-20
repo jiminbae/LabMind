@@ -125,6 +125,35 @@ class VisionGatewayTests(unittest.TestCase):
         self.assertEqual(result.status, ResultStatus.FAILED)
         self.assertEqual(result.error_message, "UNIVIBE_API_KEY is not configured.")
 
+    def test_mode_can_be_loaded_from_env_file(self) -> None:
+        env_file = tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            suffix=".env.local",
+            delete=False,
+        )
+        env_file.write(
+            "LABMIND_VISION_MODE=live\n"
+            "LABMIND_PROVIDER=univibe\n"
+            "UNIVIBE_API_KEY=univibe-test-key\n"
+        )
+        env_file.close()
+        env_path = Path(env_file.name)
+        client = FakeClient(response_parsed=extraction())
+
+        try:
+            result = extract_label_with_provider(
+                self.image_path,
+                client=client,
+                environ={},
+                env_path=env_path,
+            )
+        finally:
+            env_path.unlink(missing_ok=True)
+
+        self.assertEqual(result.status, ResultStatus.SUCCESS)
+        self.assertEqual(client.responses.last_request["model"], "gpt-5.4")
+
     def test_univibe_uses_responses_api_when_compatible(self) -> None:
         client = FakeClient(response_parsed=extraction())
         result = extract_label_with_provider(

@@ -60,6 +60,14 @@ def _merged_environment(
     values.update(dict(os.environ if environ is None else environ))
     return values
 
+def load_provider_environment(
+    environ: Mapping[str, str] | None = None,
+    env_path: Path | None = DEFAULT_ENV_PATH,
+) -> dict[str, str]:
+    """Load allowed provider settings with environment variables taking priority."""
+
+    return _merged_environment(environ, env_path)
+
 
 def _validated_univibe_base_url(value: str) -> str:
     base_url = value.rstrip("/")
@@ -81,7 +89,7 @@ def resolve_provider_config(
 ) -> VisionProviderConfig:
     """Resolve one provider without ever mixing provider credentials."""
 
-    values = _merged_environment(environ, env_path)
+    values = load_provider_environment(environ, env_path)
     selected = (provider or values.get("LABMIND_PROVIDER") or "openai").lower()
 
     if selected == "openai":
