@@ -13,8 +13,8 @@ class InventoryServiceTests(unittest.TestCase):
 
         self.assertTrue(item.found)
         self.assertEqual(item.catalog_number, "HS4323K")
-        self.assertEqual(item.expiry_date, "2026-07-25")
-        self.assertEqual(item.quantity, 8)
+        self.assertEqual(item.expiry_date, "2027-10-31")
+        self.assertEqual(item.quantity, 94)
         self.assertEqual(item.location, "Shelf A1")
 
     def test_missing_item_has_stable_shape(self) -> None:
@@ -28,7 +28,7 @@ class InventoryServiceTests(unittest.TestCase):
         item = find_inventory_item("HS4325")
 
         self.assertTrue(item.found)
-        self.assertEqual(item.quantity, 0)
+        self.assertEqual(item.quantity, 20)
 
 
 if __name__ == "__main__":

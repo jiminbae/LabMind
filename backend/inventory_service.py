@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import csv
 from pathlib import Path
+
+from data_loader import load_inventory
 
 from .date_utils import normalize_expiry_date
 from .schemas import InventoryItem
@@ -36,46 +37,45 @@ class InventoryRepository:
         if not self.inventory_path.is_file():
             raise FileNotFoundError(f"Inventory file not found: {self.inventory_path}")
 
+        frame = load_inventory(self.inventory_path)
+        actual_fields = set(frame.columns)
+        missing_fields = REQUIRED_FIELDS - actual_fields
+        if missing_fields:
+            missing = ", ".join(sorted(missing_fields))
+            raise ValueError(f"Inventory CSV is missing required fields: {missing}")
+
         items: dict[str, InventoryItem] = {}
-        with self.inventory_path.open("r", encoding="utf-8-sig", newline="") as handle:
-            reader = csv.DictReader(handle)
-            actual_fields = set(reader.fieldnames or [])
-            missing_fields = REQUIRED_FIELDS - actual_fields
-            if missing_fields:
-                missing = ", ".join(sorted(missing_fields))
-                raise ValueError(f"Inventory CSV is missing required fields: {missing}")
+        for row_number, row in enumerate(frame.to_dict(orient="records"), start=2):
+            catalog_number = normalize_catalog_number(row["catalog_number"])
+            if not catalog_number:
+                raise ValueError(f"Missing catalog_number on inventory row {row_number}")
 
-            for row_number, row in enumerate(reader, start=2):
-                catalog_number = normalize_catalog_number(row["catalog_number"])
-                if not catalog_number:
-                    raise ValueError(f"Missing catalog_number on inventory row {row_number}")
+            try:
+                quantity = int(row["quantity"])
+            except (TypeError, ValueError) as error:
+                raise ValueError(
+                    f"Invalid quantity on inventory row {row_number}"
+                ) from error
 
-                try:
-                    quantity = int(row["quantity"])
-                except (TypeError, ValueError) as error:
-                    raise ValueError(
-                        f"Invalid quantity on inventory row {row_number}"
-                    ) from error
-
-                expiry_date = normalize_expiry_date(row["expiry_date"])
-                if row["expiry_date"].strip() and expiry_date is None:
-                    raise ValueError(
-                        f"Invalid expiry_date on inventory row {row_number}"
-                    )
-
-                if catalog_number in items:
-                    raise ValueError(
-                        f"Duplicate catalog_number in inventory: {catalog_number}"
-                    )
-
-                items[catalog_number] = InventoryItem(
-                    found=True,
-                    catalog_number=catalog_number,
-                    brand=row["brand"].strip() or None,
-                    expiry_date=expiry_date,
-                    quantity=quantity,
-                    location=row["location"].strip() or None,
+            expiry_date = normalize_expiry_date(row["expiry_date"])
+            if row["expiry_date"].strip() and expiry_date is None:
+                raise ValueError(
+                    f"Invalid expiry_date on inventory row {row_number}"
                 )
+
+            if catalog_number in items:
+                raise ValueError(
+                    f"Duplicate catalog_number in inventory: {catalog_number}"
+                )
+
+            items[catalog_number] = InventoryItem(
+                found=True,
+                catalog_number=catalog_number,
+                brand=row["brand"].strip() or None,
+                expiry_date=expiry_date,
+                quantity=quantity,
+                location=row["location"].strip() or None,
+            )
 
         return items
 

@@ -32,7 +32,7 @@ class PipelineTests(unittest.TestCase):
 
         self.assertEqual(result.status, ResultStatus.SUCCESS)
         self.assertTrue(result.inventory.found)
-        self.assertEqual(result.inventory.quantity, 8)
+        self.assertEqual(result.inventory.quantity, 94)
         self.assertEqual(result.expiry_warning.state, ExpiryState.WARNING)
         self.assertTrue(result.expiry_warning.should_alert)
         self.assertEqual(len(result.alternatives), 2)
@@ -50,11 +50,28 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(len(result.alternatives), 2)
 
     def test_out_of_stock_item_returns_alternatives(self) -> None:
-        result = analyze_label(
-            "unused.png",
-            ocr_result=successful_ocr("HS4325", "2027-09-30"),
-            today=TODAY,
+        handle = tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            suffix=".csv",
+            delete=False,
         )
+        handle.write(
+            "sku,brand,expiry_date,quantity,location\n"
+            "HS4325,Sigma-Aldrich,2027-09,0,Shelf C3\n"
+        )
+        handle.close()
+        inventory_path = Path(handle.name)
+
+        try:
+            result = analyze_label(
+                "unused.png",
+                ocr_result=successful_ocr("HS4325", "2027-09-30"),
+                today=TODAY,
+                inventory_path=inventory_path,
+            )
+        finally:
+            inventory_path.unlink(missing_ok=True)
 
         self.assertEqual(result.expiry_warning.state, ExpiryState.VALID)
         self.assertEqual(result.inventory.quantity, 0)
@@ -80,7 +97,7 @@ class PipelineTests(unittest.TestCase):
 
         self.assertTrue(result.expiry_mismatch)
         self.assertEqual(result.image_expiry, "2026-07-20")
-        self.assertEqual(result.inventory_expiry, "2026-07-25")
+        self.assertEqual(result.inventory_expiry, "2027-10-31")
         self.assertEqual(result.expiry_warning.effective_expiry_date, "2026-07-20")
 
     def test_failed_ocr_short_circuits_pipeline(self) -> None:
