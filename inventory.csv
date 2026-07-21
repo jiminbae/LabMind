@@ -1,0 +1,21 @@
+﻿sku,brand,expiry_date,quantity,location
+HS4323K,Sigma-Aldrich,2027-10,94,Shelf A1
+EP022363514,Sigma-Aldrich,2028-04,23,Shelf B2
+HS4325,Sigma-Aldrich,2027-09,20,Shelf C3
+BR780420,Sigma-Aldrich,2028-01,94,Shelf D1
+HS4323,Sigma-Aldrich,2027-02,9,Shelf E2
+Z688312,Sigma-Aldrich,2027-05,41,Shelf A3
+MTCC2000Y,Sigma-Aldrich,2027-02,36,Shelf B1
+05-408-129,Fisher Scientific,2027-10,93,Shelf C2
+05-408-130,Fisher Scientific,2027-09,66,Shelf D3
+05-408-132,Fisher Scientific,2028-05,11,Shelf E1
+05-408-133,Fisher Scientific,2027-08,27,Shelf A2
+05-408-131,Fisher Scientific,2028-04,12,Shelf B3
+05-408-134,Fisher Scientific,2028-03,42,Shelf C1
+05-408-135,Fisher Scientific,2027-03,86,Shelf D2
+05-408-136,Fisher Scientific,2027-08,22,Shelf E3
+05-408-137,Fisher Scientific,2027-08,46,Shelf A1
+MFLX02550-07,VWR,2027-03,72,Shelf B2
+MFLX07904-38,VWR,2027-02,43,Shelf C3
+MFLX04395-57,VWR,2027-11,64,Shelf D1
+10025-720,VWR,2027-11,51,Shelf E2

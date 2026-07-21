@@ -1,23 +1,24 @@
+import html
 import json
+import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
 
+from backend.pipeline import analyze_label
 
-MOCK_RESULT = {
-    "status": "success",
-    "recognized_text": {
-        "product_name": "Ethanol",
-        "brand": "Sigma-Aldrich",
-        "catalog_no": "459836",
-        "expiration_date": "2027-04-30",
-        "quantity": "500 mL",
-        "storage": "Room temperature",
-    },
-    "confidence": 0.92,
-    "review_state": "Ready for inventory match",
-}
+
+STREAMLIT_SECRET_NAMES = (
+    "LABMIND_PROVIDER",
+    "LABMIND_VISION_MODE",
+    "OPENAI_API_KEY",
+    "OPENAI_MODEL",
+    "UNIVIBE_API_KEY",
+    "UNIVIBE_BASE_URL",
+    "UNIVIBE_MODEL",
+)
 
 
 def apply_theme() -> None:
@@ -299,6 +300,11 @@ def apply_theme() -> None:
             color: #1d4ed8;
         }
 
+        .result-pill.warning {
+            background: rgba(183, 121, 31, 0.13);
+            color: #8a5a13;
+        }
+
         .product-name {
             color: var(--ink);
             font-size: 32px;
@@ -381,6 +387,40 @@ def format_file_size(size_bytes: int) -> str:
     return f"{size_bytes / (1024 * 1024):.1f} MB"
 
 
+def configure_runtime_from_streamlit_secrets() -> None:
+    """Expose supported Streamlit secrets to the backend as environment variables."""
+
+    try:
+        secrets = dict(st.secrets)
+    except Exception:
+        return
+
+    for name in STREAMLIT_SECRET_NAMES:
+        if os.environ.get(name):
+            continue
+        value = secrets.get(name)
+        if value is not None and str(value).strip():
+            os.environ[name] = str(value)
+
+
+def analyze_uploaded_file(uploaded_file) -> dict:
+    """Persist one upload temporarily, run the backend, and remove the file."""
+
+    suffix = Path(uploaded_file.name).suffix.lower() or ".png"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
+        handle.write(uploaded_file.getbuffer())
+        image_path = Path(handle.name)
+
+    try:
+        return analyze_label(image_path).to_dict()
+    finally:
+        image_path.unlink(missing_ok=True)
+
+
+def display_value(value, fallback: str = "Not available") -> str:
+    text = str(value).strip() if value is not None else ""
+    return html.escape(text or fallback)
+
 def render_topbar() -> None:
     st.markdown(
         """
@@ -412,33 +452,65 @@ def render_hero() -> None:
 
 
 def render_result_card(result: dict) -> None:
-    recognized_text = result["recognized_text"]
-    confidence = f"{result['confidence'] * 100:.0f}% confidence"
-    status = result["status"].title()
+    ocr = result.get("ocr") or {}
+    inventory = result.get("inventory") or {}
+    expiry_warning = result.get("expiry_warning") or {}
+
+    status_value = result.get("status") or "failed"
+    status = getattr(status_value, "value", status_value)
+    expiry_state_value = expiry_warning.get("state") or "not checked"
+    expiry_state = getattr(expiry_state_value, "value", expiry_state_value)
+    confidence = float(ocr.get("confidence") or 0.0)
+
+    status_class = "positive" if status == "success" else "warning"
+    confidence_label = f"{confidence * 100:.0f}% confidence"
+    status_label = display_value(str(status).title())
+    product_name = display_value(ocr.get("product_name"), "Unrecognized product")
+    brand = display_value(ocr.get("brand"), "Unknown brand")
+    catalog_number = display_value(ocr.get("catalog_number"), "Not visible")
+    lot_number = display_value(ocr.get("lot_number"))
+    expiry_date = display_value(ocr.get("expiry_date"))
+
+    if inventory:
+        inventory_status = "Found" if inventory.get("found") else "Not found"
+    else:
+        inventory_status = "Not checked"
 
     st.markdown(
         f"""
         <div class="result-card">
             <div class="result-pills">
-                <span class="result-pill positive">{confidence}</span>
-                <span class="result-pill neutral">{status}</span>
+                <span class="result-pill {status_class}">{confidence_label}</span>
+                <span class="result-pill neutral">{status_label}</span>
             </div>
-            <h3 class="product-name">{recognized_text["product_name"]}</h3>
+            <h3 class="product-name">{product_name}</h3>
             <div class="product-subtitle">
-                {recognized_text["brand"]} · Catalog {recognized_text["catalog_no"]}
+                {brand} &middot; Catalog {catalog_number}
             </div>
             <div class="detail-grid">
                 <div class="detail-card">
+                    <div class="field-label">Lot number</div>
+                    <div class="field-value">{lot_number}</div>
+                </div>
+                <div class="detail-card">
                     <div class="field-label">Expiration</div>
-                    <div class="field-value">{recognized_text["expiration_date"]}</div>
+                    <div class="field-value">{expiry_date}</div>
+                </div>
+                <div class="detail-card">
+                    <div class="field-label">Inventory</div>
+                    <div class="field-value">{display_value(inventory_status)}</div>
                 </div>
                 <div class="detail-card">
                     <div class="field-label">Quantity</div>
-                    <div class="field-value">{recognized_text["quantity"]}</div>
+                    <div class="field-value">{display_value(inventory.get("quantity"))}</div>
                 </div>
                 <div class="detail-card">
-                    <div class="field-label">Storage</div>
-                    <div class="field-value">{recognized_text["storage"]}</div>
+                    <div class="field-label">Location</div>
+                    <div class="field-value">{display_value(inventory.get("location"))}</div>
+                </div>
+                <div class="detail-card">
+                    <div class="field-label">Expiry state</div>
+                    <div class="field-value">{display_value(str(expiry_state).title())}</div>
                 </div>
             </div>
         </div>
@@ -454,6 +526,7 @@ def main() -> None:
         layout="wide",
     )
 
+    configure_runtime_from_streamlit_secrets()
     apply_theme()
     render_topbar()
     render_hero()
@@ -464,7 +537,7 @@ def main() -> None:
         st.markdown('<div class="section-label">Input</div>', unsafe_allow_html=True)
         st.markdown('<h2 class="panel-title">Label preview</h2>', unsafe_allow_html=True)
         st.markdown(
-            '<p class="panel-copy">Upload a reagent bottle label for the review screen.</p>',
+            '<p class="panel-copy">Upload a reagent bottle label for backend analysis.</p>',
             unsafe_allow_html=True,
         )
         uploaded_file = st.file_uploader(
@@ -491,25 +564,78 @@ def main() -> None:
         st.markdown('<div class="section-label">Output</div>', unsafe_allow_html=True)
         st.markdown('<h2 class="panel-title">Recognition result</h2>', unsafe_allow_html=True)
         st.markdown(
-            '<p class="panel-copy">Review the structured fields recognized from the selected label.</p>',
+            '<p class="panel-copy">Run OCR, inventory, expiry, and recommendation analysis.</p>',
             unsafe_allow_html=True,
         )
 
         if uploaded_file is None:
             st.info("Result will appear after an image is selected.")
         else:
-            st.success(MOCK_RESULT["review_state"])
-            metric_cols = st.columns(2)
-            metric_cols[0].metric("Confidence", f"{MOCK_RESULT['confidence'] * 100:.0f}%")
-            metric_cols[1].metric("Status", MOCK_RESULT["status"].title())
+            file_signature = f"{uploaded_file.name}:{uploaded_file.size}"
+            if st.button("Analyze label", type="primary", use_container_width=True):
+                try:
+                    with st.spinner("Analyzing the reagent label..."):
+                        payload = analyze_uploaded_file(uploaded_file)
+                    st.session_state["labmind_result"] = payload
+                    st.session_state["labmind_file_signature"] = file_signature
+                except Exception as error:
+                    st.session_state.pop("labmind_result", None)
+                    st.session_state.pop("labmind_file_signature", None)
+                    st.error(f"Analysis could not start ({type(error).__name__}).")
 
-            render_result_card(MOCK_RESULT)
+            payload = None
+            if st.session_state.get("labmind_file_signature") == file_signature:
+                payload = st.session_state.get("labmind_result")
 
-            with st.expander("Raw JSON"):
-                st.code(
-                    json.dumps(MOCK_RESULT, indent=2),
-                    language="json",
+            if payload is None:
+                st.info("Select Analyze label to run the backend.")
+            else:
+                ocr = payload.get("ocr") or {}
+                status_value = payload.get("status") or "failed"
+                status = getattr(status_value, "value", status_value)
+
+                if status == "success":
+                    st.success("Backend analysis completed.")
+                else:
+                    st.warning(
+                        payload.get("error_message")
+                        or "Recognition was incomplete. Review the partial fields below."
+                    )
+
+                metric_cols = st.columns(2)
+                metric_cols[0].metric(
+                    "Confidence",
+                    f"{float(ocr.get('confidence') or 0.0) * 100:.0f}%",
                 )
+                metric_cols[1].metric("Status", str(status).title())
+
+                render_result_card(payload)
+
+                alternatives = payload.get("alternatives") or []
+                if alternatives:
+                    st.markdown("### Recommended alternatives")
+                    alternative_rows = []
+                    for alternative in alternatives:
+                        product = alternative.get("product") or {}
+                        alternative_rows.append(
+                            {
+                                "Catalog": alternative.get("catalog_number"),
+                                "Compatibility": alternative.get("compatibility_note"),
+                                "Brand": product.get("brand"),
+                                "Price (USD)": product.get("price_usd"),
+                            }
+                        )
+                    st.dataframe(
+                        alternative_rows,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+
+                with st.expander("Raw JSON"):
+                    st.code(
+                        json.dumps(payload, ensure_ascii=False, indent=2),
+                        language="json",
+                    )
 
 if __name__ == "__main__":
     main()
