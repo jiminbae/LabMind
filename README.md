@@ -13,6 +13,20 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+## Unit 1 interface
+
+`app_v5.py` contains the next LabMind interface for reagent registration and
+inventory discovery.
+
+```powershell
+streamlit run app_v5.py
+```
+
+This milestone is UI-only. Label extraction, order matching, storage guidance,
+registration, and inventory records use deterministic sample data. No backend,
+OCR provider, or database is connected. Future integration points are marked
+with focused `TODO` comments in `app_v5.py`.
+
 ## GitHub Pages
 
 Pushes that change `site/` on the `frontend` branch deploy through
