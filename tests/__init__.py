@@ -1,1 +1,0 @@
-"""LabMind backend tests."""
