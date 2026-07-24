@@ -13,6 +13,7 @@ import streamlit as st
 ADD_STATE_KEYS = {
     "add_file_signature",
     "add_upload_time",
+    "add_stage",
     "add_extraction_complete",
     "add_confirmation",
     "add_order_scenario",
@@ -53,13 +54,13 @@ def apply_theme() -> None:
             --surface-strong: #ffffff;
             --ink: #1d1d1f;
             --secondary: #6e6e73;
-            --tertiary: #86868b;
+            --tertiary: #6e6e73;
             --line: rgba(0, 0, 0, 0.09);
             --line-strong: rgba(0, 0, 0, 0.14);
-            --accent: #0071e3;
-            --accent-hover: #0077ed;
+            --accent: #0066cc;
+            --accent-hover: #005bb5;
             --teal: #087f75;
-            --green: #248a3d;
+            --green: #1f7535;
             --amber: #a95d00;
             --red: #d70015;
             --shadow: 0 10px 34px rgba(0, 0, 0, 0.055);
@@ -71,9 +72,7 @@ def apply_theme() -> None:
         }
 
         .stApp {
-            background:
-                radial-gradient(circle at 88% 2%, rgba(0, 113, 227, 0.055), transparent 28rem),
-                var(--canvas);
+            background: var(--canvas);
             color: var(--ink);
         }
 
@@ -90,7 +89,7 @@ def apply_theme() -> None:
             visibility: hidden;
         }
 
-        h1, h2, h3, p {
+        h1, h2, h3 {
             color: var(--ink);
             letter-spacing: -0.015em;
         }
@@ -138,7 +137,7 @@ def apply_theme() -> None:
         }
 
         .hero {
-            padding: 58px 0 38px;
+            padding: 46px 0 32px;
         }
 
         .hero-kicker {
@@ -151,7 +150,7 @@ def apply_theme() -> None:
 
         .hero-title {
             color: var(--ink);
-            font-size: clamp(42px, 6vw, 68px);
+            font-size: clamp(40px, 5.4vw, 60px);
             font-weight: 710;
             letter-spacing: -0.055em;
             line-height: 0.98;
@@ -199,41 +198,42 @@ def apply_theme() -> None:
         }
 
         .stepper {
-            background: rgba(255, 255, 255, 0.68);
-            border: 1px solid var(--line);
-            border-radius: 18px;
+            background: transparent;
             display: grid;
-            gap: 0;
+            gap: 8px;
             grid-template-columns: repeat(5, 1fr);
-            margin: 4px 0 26px;
-            overflow: hidden;
+            margin: 2px 0 18px;
         }
 
         .step {
-            border-right: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid var(--line);
+            border-radius: 999px;
             color: var(--tertiary);
             font-size: 12px;
-            padding: 14px 13px;
-        }
-
-        .step:last-child {
-            border-right: 0;
+            overflow: hidden;
+            padding: 8px 11px;
+            text-align: center;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .step strong {
             color: inherit;
-            display: block;
+            display: inline;
             font-size: 11px;
-            margin-bottom: 3px;
+            margin-right: 5px;
         }
 
         .step.active {
-            background: var(--surface-strong);
-            color: var(--accent);
+            background: var(--ink);
+            border-color: var(--ink);
+            color: #fff;
         }
 
         .step.complete {
-            color: var(--green);
+            background: #fff;
+            color: #3a3a3c;
         }
 
         div[data-testid="stTabs"] [data-baseweb="tab-list"] {
@@ -260,6 +260,11 @@ def apply_theme() -> None:
             color: var(--ink);
         }
 
+        div[data-testid="stTabs"] button p,
+        div[data-testid="stTabs"] button span {
+            color: inherit !important;
+        }
+
         div[data-testid="stTabs"] [data-baseweb="tab-highlight"] {
             display: none;
         }
@@ -268,11 +273,44 @@ def apply_theme() -> None:
             display: none;
         }
 
-        div[data-testid="stVerticalBlockBorderWrapper"] {
+        div[data-testid="stTabs"] [role="tablist"] {
+            background: rgba(118, 118, 128, 0.11);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 13px;
+            gap: 0;
+            padding: 4px;
+            width: fit-content;
+        }
+
+        div[data-testid="stTabs"] [role="tablist"]::after,
+        div[data-testid="stTabs"] .react-aria-SelectionIndicator {
+            display: none !important;
+        }
+
+        div[data-testid="stTabs"] button[data-testid="stTab"] {
+            border-radius: 9px;
+            color: var(--secondary) !important;
+            font-size: 14px;
+            font-weight: 590;
+            height: 38px;
+            padding: 0 18px;
+        }
+
+        div[data-testid="stTabs"] button[data-testid="stTab"][data-selected],
+        div[data-testid="stTabs"] button[data-testid="stTab"][aria-selected="true"] {
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+            color: var(--ink) !important;
+        }
+
+        .st-key-upload_panel,
+        .st-key-review_placeholder,
+        .st-key-registration_panel,
+        .st-key-query_panel {
             background: var(--surface);
             border: 1px solid var(--line);
             border-radius: 20px;
-            box-shadow: var(--shadow);
+            box-shadow: 0 8px 26px rgba(0, 0, 0, 0.045);
         }
 
         div[data-testid="stFileUploader"] section {
@@ -298,16 +336,82 @@ def apply_theme() -> None:
             transition: all .18s ease;
         }
 
+        div[data-testid="stFileUploader"] button,
+        div.stButton > button[kind="secondary"],
+        div.stButton > button[kind="tertiary"],
+        div[data-testid="stDownloadButton"] > button {
+            background: #fff !important;
+            border: 1px solid var(--line-strong) !important;
+            color: var(--ink) !important;
+        }
+
+        div[data-testid="stFileUploader"] button:hover,
+        div.stButton > button[kind="secondary"]:hover,
+        div.stButton > button[kind="tertiary"]:hover,
+        div[data-testid="stDownloadButton"] > button:hover {
+            background: #f0f0f2 !important;
+            border-color: rgba(0, 0, 0, 0.22) !important;
+            color: #000 !important;
+        }
+
         div.stButton > button[kind="primary"] {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: white;
+            background: var(--accent) !important;
+            border-color: var(--accent) !important;
+            color: #fff !important;
+        }
+
+        button[data-testid="stBaseButton-primary"] {
+            background: var(--accent) !important;
+            border-color: var(--accent) !important;
+            color: #fff !important;
+        }
+
+        button[data-testid="stBaseButton-primary"]:hover {
+            background: var(--accent-hover) !important;
+            border-color: var(--accent-hover) !important;
+            color: #fff !important;
+        }
+
+        button[data-testid="stBaseButton-secondary"],
+        button[data-testid="stBaseButton-tertiary"] {
+            background: #fff !important;
+            border-color: var(--line-strong) !important;
+            color: var(--ink) !important;
+        }
+
+        button[data-testid="stBaseButton-secondary"]:hover,
+        button[data-testid="stBaseButton-tertiary"]:hover {
+            background: #f0f0f2 !important;
+            border-color: rgba(0, 0, 0, 0.22) !important;
+            color: #000 !important;
+        }
+
+        button[data-testid^="stBaseButton"] p,
+        button[data-testid^="stBaseButton"] span {
+            color: inherit !important;
         }
 
         div.stButton > button[kind="primary"]:hover {
-            background: var(--accent-hover);
-            border-color: var(--accent-hover);
+            background: var(--accent-hover) !important;
+            border-color: var(--accent-hover) !important;
+            color: #fff !important;
             box-shadow: 0 5px 16px rgba(0, 113, 227, 0.22);
+        }
+
+        div[data-testid="stFileUploader"] button p,
+        div[data-testid="stFileUploader"] button span,
+        div.stButton > button p,
+        div.stButton > button span,
+        div[data-testid="stDownloadButton"] > button p,
+        div[data-testid="stDownloadButton"] > button span {
+            color: inherit !important;
+        }
+
+        div.stButton > button:disabled {
+            background: #e8e8ed !important;
+            border-color: #e8e8ed !important;
+            color: #5f5f65 !important;
+            opacity: 1 !important;
         }
 
         div.stButton > button:focus-visible,
@@ -326,6 +430,95 @@ def apply_theme() -> None:
             border-radius: 12px !important;
         }
 
+        input, textarea {
+            color: var(--ink) !important;
+        }
+
+        input::placeholder, textarea::placeholder {
+            color: var(--secondary) !important;
+            opacity: 1 !important;
+        }
+
+        div[data-baseweb="select"] span {
+            color: var(--ink);
+        }
+
+        div[data-testid="stWidgetLabel"] p,
+        div[data-testid="stWidgetLabel"] span,
+        label p,
+        label span {
+            color: #3a3a3c !important;
+        }
+
+        div[data-testid="stSegmentedControl"] {
+            margin: 2px 0 18px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+        }
+
+        div[data-testid="stSegmentedControl"] > div {
+            background: rgba(118, 118, 128, 0.11);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 13px;
+            min-width: max-content;
+            padding: 4px;
+        }
+
+        div[data-testid="stSegmentedControl"] button {
+            border-radius: 9px !important;
+            color: var(--secondary) !important;
+            min-height: 36px;
+        }
+
+        div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+            background: #fff !important;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+            color: var(--ink) !important;
+        }
+
+        div[data-testid="stSegmentedControl"] button p,
+        div[data-testid="stSegmentedControl"] button span {
+            color: inherit !important;
+        }
+
+        div[data-testid="stButtonGroup"] {
+            margin: 2px 0 18px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+        }
+
+        div[data-testid="stButtonGroup"] [role="radiogroup"] {
+            background: rgba(118, 118, 128, 0.11);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 13px;
+            min-width: max-content;
+            padding: 4px;
+        }
+
+        div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] {
+            border-radius: 9px !important;
+            color: var(--secondary) !important;
+            min-height: 36px;
+        }
+
+        div[data-testid="stButtonGroup"] button[data-variant="segmented_control"][data-selected],
+        div[data-testid="stButtonGroup"] button[data-variant="segmented_control"][aria-checked="true"] {
+            background: #fff !important;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+            color: var(--ink) !important;
+        }
+
+        div[data-testid="stButtonGroup"] button p,
+        div[data-testid="stButtonGroup"] button span {
+            color: inherit !important;
+        }
+
+        div[data-testid="stExpander"] summary,
+        div[data-testid="stExpander"] summary p,
+        div[data-testid="stExpander"] summary span {
+            color: var(--ink) !important;
+        }
+
         .empty-state {
             align-items: center;
             background: rgba(245, 245, 247, 0.72);
@@ -339,10 +532,17 @@ def apply_theme() -> None:
             text-align: center;
         }
 
-        .meta-grid, .summary-grid {
+        .meta-grid {
             display: grid;
             gap: 10px;
             grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-top: 13px;
+        }
+
+        .summary-grid {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             margin-top: 13px;
         }
 
@@ -522,20 +722,27 @@ def apply_theme() -> None:
             }
 
             .stepper {
-                grid-template-columns: 1fr;
+                display: flex;
+                overflow-x: auto;
+                padding-bottom: 4px;
             }
 
             .step {
-                border-bottom: 1px solid var(--line);
-                border-right: 0;
-                padding: 10px 13px;
+                flex: 0 0 auto;
+                min-width: 112px;
             }
 
-            .step:last-child {
-                border-bottom: 0;
+            .meta-grid, .metric-row {
+                grid-template-columns: 1fr;
             }
 
-            .meta-grid, .summary-grid, .metric-row {
+            .summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 460px) {
+            .summary-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -842,15 +1049,20 @@ def render_stepper() -> None:
     if st.session_state.get("add_confirmation"):
         active_step = 5
     elif st.session_state.get("add_extraction_complete"):
-        active_step = 2
+        active_step = {
+            "Details": 2,
+            "Order": 3,
+            "Storage": 4,
+            "Review": 5,
+        }.get(st.session_state.get("add_stage"), 2)
     else:
         active_step = 1
     labels = [
-        "Upload label",
-        "Review fields",
-        "Connect order",
-        "Assign storage",
-        "Confirm",
+        "Label",
+        "Details",
+        "Order",
+        "Storage",
+        "Review",
     ]
     items = []
     for index, label in enumerate(labels, start=1):
@@ -867,6 +1079,7 @@ def initialize_extraction_state() -> None:
         st.session_state[f"add_field_{field}"] = value
     st.session_state["add_extraction_complete"] = True
     st.session_state["add_confirmation"] = None
+    st.session_state["add_stage"] = "Details"
     st.session_state.setdefault("add_order_scenario", "Unique match")
     st.session_state.setdefault("add_storage_location", "Flammable Cabinet B")
 
@@ -1041,8 +1254,20 @@ def render_order_match_step() -> None:
             key="add_selected_order",
         )
         st.session_state["add_register_without_order"] = False
-        for order in matches:
-            render_order_card(order, selected=order["order_id"] == selected_id)
+        render_order_card(options[selected_id], selected=True)
+        with st.expander("Compare all candidates"):
+            comparison = pd.DataFrame(
+                [
+                    {
+                        "Order": order["order_id"],
+                        "Manufacturer": order["manufacturer"],
+                        "Quantity": order["quantity"],
+                        "Match": order["score"],
+                    }
+                    for order in matches
+                ]
+            )
+            st.dataframe(comparison, hide_index=True, width="stretch")
     else:
         st.session_state.pop("add_selected_order", None)
         st.warning("No pending order confidently matches these label details.")
@@ -1110,6 +1335,59 @@ def clear_order_selection() -> None:
     st.session_state.pop("add_selected_order", None)
     st.session_state.pop("add_register_without_order", None)
     st.session_state.pop("add_confirmation", None)
+
+
+def set_add_stage(stage: str) -> None:
+    st.session_state["add_stage"] = stage
+
+
+def render_stage_navigation(
+    *,
+    previous_stage: str | None = None,
+    next_stage: str | None = None,
+    next_label: str = "Continue",
+    next_disabled: bool = False,
+) -> None:
+    if previous_stage and next_stage:
+        previous_col, next_col = st.columns([1, 1])
+        with previous_col:
+            st.button(
+                "Back",
+                width="stretch",
+                key=f"back_to_{previous_stage.lower()}",
+                on_click=set_add_stage,
+                args=(previous_stage,),
+            )
+        with next_col:
+            st.button(
+                next_label,
+                type="primary",
+                width="stretch",
+                disabled=next_disabled,
+                key=f"continue_to_{next_stage.lower()}",
+                on_click=set_add_stage,
+                args=(next_stage,),
+            )
+        return
+    if next_stage:
+        st.button(
+            next_label,
+            type="primary",
+            width="stretch",
+            disabled=next_disabled,
+            key=f"continue_to_{next_stage.lower()}",
+            on_click=set_add_stage,
+            args=(next_stage,),
+        )
+        return
+    if previous_stage:
+        st.button(
+            "Back",
+            width="stretch",
+            key=f"back_to_{previous_stage.lower()}",
+            on_click=set_add_stage,
+            args=(previous_stage,),
+        )
 
 
 def render_confirmation_step() -> None:
@@ -1196,15 +1474,54 @@ def render_confirmation_step() -> None:
     )
 
 
+def render_registration_workspace() -> None:
+    st.session_state.setdefault("add_stage", "Details")
+    stage = st.segmented_control(
+        "Registration stage",
+        ["Details", "Order", "Storage", "Review"],
+        key="add_stage",
+        required=True,
+        width="stretch",
+        label_visibility="collapsed",
+    )
+    if stage == "Details":
+        render_extraction_step()
+        render_stage_navigation(next_stage="Order", next_label="Continue to order")
+        return
+    if stage == "Order":
+        render_order_match_step()
+        order_ready = bool(
+            st.session_state.get("add_selected_order")
+            or st.session_state.get("add_register_without_order")
+        )
+        render_stage_navigation(
+            previous_stage="Details",
+            next_stage="Storage",
+            next_label="Continue to storage",
+            next_disabled=not order_ready,
+        )
+        return
+    if stage == "Storage":
+        render_storage_step()
+        render_stage_navigation(
+            previous_stage="Order",
+            next_stage="Review",
+            next_label="Review registration",
+        )
+        return
+    render_confirmation_step()
+    render_stage_navigation(previous_stage="Storage")
+
+
 def render_add_tab() -> None:
     render_stepper()
     left, right = st.columns([0.9, 1.1], gap="large")
     with left:
-        with st.container(border=True):
+        with st.container(border=True, key="upload_panel"):
             uploaded_contents = render_upload_step()
     with right:
         if uploaded_contents is None:
-            with st.container(border=True):
+            with st.container(border=True, key="review_placeholder"):
                 render_section_header(
                     "Next",
                     "Review workspace",
@@ -1216,7 +1533,7 @@ def render_add_tab() -> None:
                 )
             return
         if not st.session_state.get("add_extraction_complete"):
-            with st.container(border=True):
+            with st.container(border=True, key="review_placeholder"):
                 render_section_header(
                     "Next",
                     "Review workspace",
@@ -1227,14 +1544,8 @@ def render_add_tab() -> None:
                     unsafe_allow_html=True,
                 )
             return
-        with st.container(border=True):
-            render_extraction_step()
-        with st.container(border=True):
-            render_order_match_step()
-        with st.container(border=True):
-            render_storage_step()
-        with st.container(border=True):
-            render_confirmation_step()
+        with st.container(border=True, key="registration_panel"):
+            render_registration_workspace()
 
 
 def render_inventory_metrics(frame: pd.DataFrame) -> None:
@@ -1438,7 +1749,7 @@ def render_query_tab() -> None:
         key="query_mode",
         label_visibility="collapsed",
     )
-    with st.container(border=True):
+    with st.container(border=True, key="query_panel"):
         if mode == "Basic filters":
             results = render_basic_query(frame)
         else:
