@@ -3,11 +3,30 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+from io import BytesIO
 from datetime import date, datetime, timedelta
 from typing import Any, MutableMapping
+from uuid import uuid4
 
 import pandas as pd
 import streamlit as st
+
+from backend.app_service import (
+    load_inventory_frame,
+    register_reagent_payload,
+)
+from backend.chemistry_catalog import catalog_profile
+from backend.classification_cache import get_cas_classification
+from backend.classification_service import classify_cas_with_gemini
+from backend.order_matching import (
+    import_pending_orders,
+    match_pending_orders,
+    select_unique_order_match,
+)
+from backend.provider_config import PROVIDER_ENV_NAMES
+from backend.query_translation_service import translate_chemical_question
+from backend.safety_rules import determine_storage_location
+from backend.vision_service import extract_label_fields
 
 try:
     from rdkit import Chem
@@ -18,11 +37,16 @@ except ImportError:  # The UI fails closed until the chemistry runtime is instal
 ADD_STATE_KEYS = {
     "add_file_signature",
     "add_upload_time",
+    "add_receipt_key",
+    "add_extraction_notice",
     "add_stage",
     "add_extraction_complete",
+    "add_extraction_source",
+    "add_extraction_rationale",
     "add_confirmation",
     "add_order_scenario",
     "add_selected_order",
+    "add_order_match_score",
     "add_register_without_order",
     "add_storage_location",
     "add_classification_cas",
@@ -31,6 +55,7 @@ ADD_STATE_KEYS = {
     "add_classification_confidence",
     "add_classification_source",
     "add_classification_rationale",
+    "add_classification_notice",
     "add_storage_rule",
     "add_storage_decision_signature",
     "add_manual_storage_reviewed",
@@ -84,56 +109,6 @@ STORAGE_CONSTRAINT_OPTIONS = [
     "Segregate from bases",
     "Water reactive",
 ]
-
-CHEMICAL_CLASSIFICATION_PROFILES = {
-    "64-17-5": {
-        "labels": ["Flammable liquid", "Protic solvent", "Organic compound"],
-        "constraints": [
-            "Flammable",
-            "Keep away from oxidizers",
-            "Ambient temperature",
-        ],
-        "confidence": 0.97,
-        "rationale": "A volatile protic solvent with a low flash point.",
-    },
-    "7550-45-0": {
-        "labels": ["Lewis acid", "Inorganic compound", "Moisture reactive"],
-        "constraints": ["Corrosive", "Water reactive", "Segregate from bases"],
-        "confidence": 0.94,
-        "rationale": "A strong Lewis acid that reacts vigorously with moisture.",
-    },
-    "109-72-8": {
-        "labels": ["Organometallic", "Pyrophoric", "Reducing agent"],
-        "constraints": [
-            "Flammable",
-            "Water reactive",
-            "Keep away from acids",
-            "Locked storage",
-        ],
-        "confidence": 0.96,
-        "rationale": "An organolithium reagent requiring inert, tightly controlled storage.",
-    },
-    "76189-55-4": {
-        "labels": [
-            "Chiral ligand",
-            "Phosphine ligand",
-            "Organophosphorus compound",
-        ],
-        "constraints": ["Ambient temperature", "Keep away from oxidizers"],
-        "confidence": 0.93,
-        "rationale": "A privileged chiral bisphosphine ligand used in asymmetric catalysis.",
-    },
-    "210169-54-3": {
-        "labels": [
-            "Chiral ligand",
-            "Phosphine ligand",
-            "Organophosphorus compound",
-        ],
-        "constraints": ["Ambient temperature", "Keep away from oxidizers"],
-        "confidence": 0.91,
-        "rationale": "A chiral bisphosphine ligand commonly used for asymmetric transformations.",
-    },
-}
 
 
 def apply_theme() -> None:
@@ -1688,69 +1663,61 @@ def uploaded_file_signature(contents: bytes) -> str:
 
 
 def get_sample_extraction_result() -> dict[str, Any]:
-    """Temporary UI data. TODO: replace with vision_extract output."""
+    """Return a blank, editable intake state; never a fake reagent record."""
     return {
-        "chemical_name": "Ethanol",
-        "cas_number": "64-17-5",
-        "specification": "HPLC grade",
-        "batch_number": "SHBJ3763",
-        "manufacturer": "Sigma-Aldrich",
-        "expiry_date": date(2027, 4, 30),
-        "quantity": 500.0,
+        "chemical_name": "",
+        "cas_number": "",
+        "specification": "",
+        "batch_number": "",
+        "manufacturer": "",
+        "expiry_date": None,
+        "quantity": 0.0,
         "unit": "mL",
-        "confidence": 92,
+        "confidence": 0,
     }
 
 
-def get_sample_order_matches(scenario: str) -> list[dict[str, Any]]:
-    """Temporary UI data. TODO: replace with order_matcher output."""
-    orders = [
-        {
-            "order_id": "PO-2026-1842",
-            "chemical_name": "Ethanol",
-            "cas_number": "64-17-5",
-            "manufacturer": "Sigma-Aldrich",
-            "quantity": "500 mL",
-            "score": "98%",
-            "explanation": "CAS number, manufacturer, grade, and quantity align.",
-        },
-        {
-            "order_id": "PO-2026-1798",
-            "chemical_name": "Ethanol",
-            "cas_number": "64-17-5",
-            "manufacturer": "Fisher Chemical",
-            "quantity": "1 L",
-            "score": "81%",
-            "explanation": "Chemical and CAS number align; manufacturer and quantity differ.",
-        },
-        {
-            "order_id": "PO-2026-1771",
-            "chemical_name": "Ethyl alcohol",
-            "cas_number": "64-17-5",
-            "manufacturer": "Sigma-Aldrich",
-            "quantity": "1 L",
-            "score": "88%",
-            "explanation": "CAS number and manufacturer align; order uses an alternate name.",
-        },
-    ]
-    if scenario == "Unique match":
-        return orders[:1]
-    if scenario == "Multiple matches":
-        return orders
-    return []
+def streamlit_provider_environment() -> dict[str, str]:
+    """Read provider settings from Streamlit secrets without ever rendering them."""
+
+    environment: dict[str, str] = {}
+    try:
+        for name in PROVIDER_ENV_NAMES:
+            value = st.secrets.get(name)
+            if value is not None:
+                environment[name] = str(value)
+    except (FileNotFoundError, KeyError, AttributeError):
+        # A local installation may intentionally not have a secrets file.
+        pass
+    return environment
 
 
 def get_chemical_classification(cas_number: str | None) -> dict[str, Any]:
-    """Return a CAS-level chemistry profile from the local classification cache."""
+    """Return a reviewed CAS profile or a fail-closed manual-review state."""
     normalized = (cas_number or "").strip()
-    profile = CHEMICAL_CLASSIFICATION_PROFILES.get(normalized)
+    cached = get_cas_classification(normalized) if validate_cas_number(normalized) else None
+    if cached:
+        return {
+            "labels": list(cached["chemical_tags"]),
+            "constraints": list(cached["hazard_labels"]),
+            "cas_number": normalized,
+            "confidence": float(cached.get("confidence") or 0),
+            "rationale": cached.get("rationale") or "CAS classification cache.",
+            "cache_status": (
+                "Reviewer-confirmed CAS cache"
+                if cached.get("reviewed")
+                else "CAS classification cache"
+            ),
+        }
+    profile = catalog_profile(normalized)
     if profile:
         return {
-            **profile,
             "labels": list(profile["labels"]),
             "constraints": list(profile["constraints"]),
             "cas_number": normalized,
-            "cache_status": "CAS classification cache",
+            "confidence": float(profile["confidence"]),
+            "rationale": str(profile["rationale"]),
+            "cache_status": "Reviewed reference profile",
         }
     return {
         "cas_number": normalized,
@@ -1758,47 +1725,7 @@ def get_chemical_classification(cas_number: str | None) -> dict[str, Any]:
         "constraints": [],
         "confidence": 0.0,
         "rationale": "No cached profile is available. A chemistry review is required.",
-        "cache_status": "Review required",
-    }
-
-
-def determine_storage_location(constraints: list[str]) -> dict[str, str]:
-    """Apply hard storage rules; model classifications never select a cabinet."""
-    constraint_set = set(constraints)
-    supported = set(STORAGE_CONSTRAINT_OPTIONS)
-    conflicting = (
-        {"Refrigerated", "Flammable"} <= constraint_set
-        or {"Corrosive", "Flammable"} <= constraint_set
-    )
-    if (
-        not constraint_set
-        or not constraint_set <= supported
-        or conflicting
-        or "Water reactive" in constraint_set
-        or "Locked storage" in constraint_set
-    ):
-        return {
-            "location": "Manual Review Required",
-            "rule": "SR-01 · Unknown, conflicting, reactive, or restricted constraints require safety review.",
-        }
-    if "Refrigerated" in constraint_set:
-        return {
-            "location": "Refrigerated Storage",
-            "rule": "SR-02 · Refrigerated materials remain in temperature-controlled storage.",
-        }
-    if "Corrosive" in constraint_set:
-        return {
-            "location": "Corrosives Cabinet",
-            "rule": "SR-03 · Corrosives are segregated from general and flammable stock.",
-        }
-    if "Flammable" in constraint_set:
-        return {
-            "location": "Flammable Cabinet B",
-            "rule": "SR-04 · Flammable liquids are assigned to an approved cabinet.",
-        }
-    return {
-        "location": "General Shelf A",
-        "rule": "SR-05 · Ambient material with no special segregation rule.",
+        "cache_status": "Manual classification required",
     }
 
 
@@ -1817,16 +1744,11 @@ def get_sample_storage_recommendation(
 
 
 def confirm_sample_registration(
-    payload: dict[str, Any], *, reviewed: bool
+    payload: dict[str, Any], *, reviewed: bool, db_path: str | None = None
 ) -> dict[str, Any]:
-    """Temporary UI response. TODO: replace with db_utils.insert_reagent."""
-    if not reviewed:
-        raise ValueError("Registration requires reviewed information.")
-    return {
-        "record_id": "LAB-2026-001",
-        "prepared_at": datetime.now().isoformat(timespec="seconds"),
-        "payload": payload,
-    }
+    """Commit one reviewed reagent through the backend's idempotent intake path."""
+
+    return register_reagent_payload(payload, reviewed=reviewed, db_path=db_path)
 
 
 def clear_state_keys(
@@ -1886,127 +1808,18 @@ def cas_display_state(cas_number: str | None) -> tuple[str, str]:
     return "CAS check digit failed · recapture or enter manually", "warning"
 
 
-def load_sample_inventory(today: date | None = None) -> pd.DataFrame:
-    """Return deterministic UI records. TODO: replace with inventory repository."""
-    today = today or date.today()
-    records = [
-        ("LAB-001", "Ethanol", "64-17-5", "Sigma-Aldrich", "SHBJ3763", "HPLC grade", 8, "500 mL", today + timedelta(days=19), "Flammable Cabinet B"),
-        ("LAB-002", "Methanol", "67-56-1", "Fisher Chemical", "M240912", "ACS grade", 24, "1 L", today + timedelta(days=132), "Flammable Cabinet A"),
-        ("LAB-003", "Acetonitrile", "75-05-8", "Sigma-Aldrich", "STBH1142", "LC-MS grade", 4, "1 L", today + timedelta(days=7), "Flammable Cabinet B"),
-        ("LAB-004", "Hydrochloric acid", "7647-01-0", "VWR Chemicals", "HCL-5521", "37%", 13, "500 mL", today + timedelta(days=280), "Corrosives Cabinet"),
-        ("LAB-005", "Sodium chloride", "7647-14-5", "Sigma-Aldrich", "SLCH0087", "BioUltra", 42, "500 g", today + timedelta(days=540), "General Shelf A"),
-        ("LAB-006", "Acetic acid", "64-19-7", "Fisher Chemical", "A24-887", "Glacial", 6, "500 mL", today - timedelta(days=3), "Corrosives Cabinet"),
-        ("LAB-007", "Phosphate-buffered saline", "—", "Thermo Fisher", "PBS-1094", "10×", 18, "500 mL", today + timedelta(days=46), "Refrigerated Storage"),
-        ("LAB-008", "Dimethyl sulfoxide", "67-68-5", "Sigma-Aldrich", "MKCL3021", "Molecular biology", 5, "100 mL", today + timedelta(days=365), "General Shelf B"),
-        ("LAB-009", "Trypsin-EDTA", "—", "Gibco", "T2026-14", "0.25%", 7, "100 mL", today + timedelta(days=12), "Freezer Storage"),
-        ("LAB-010", "Tris base", "77-86-1", "Bio-Rad", "TRS-7730", "Molecular biology", 31, "1 kg", today + timedelta(days=700), "General Shelf A"),
-        ("LAB-011", "Titanium tetrachloride", "7550-45-0", "Sigma-Aldrich", "TI-4421", "99.9%", 2, "100 mL", today + timedelta(days=410), "Corrosives Cabinet"),
-        ("LAB-012", "n-Butyllithium", "109-72-8", "Acros Organics", "BL-9031", "2.5 M in hexanes", 1, "100 mL", today + timedelta(days=82), "Manual Review Required"),
-        ("LAB-013", "(R)-BINAP", "76189-55-4", "Strem Chemicals", "BN-1184", "98%", 3, "5 g", today + timedelta(days=620), "General Shelf B"),
-        ("LAB-014", "(S)-SEGPHOS", "210169-54-3", "TCI America", "SG-2407", "98%", 2, "1 g", today + timedelta(days=480), "General Shelf B"),
-    ]
-    frame = pd.DataFrame(
-        records,
-        columns=[
-            "Record ID",
-            "Chemical name",
-            "CAS number",
-            "Manufacturer",
-            "Batch number",
-            "Specification",
-            "Quantity",
-            "Unit",
-            "Expiry date",
-            "Storage location",
-        ],
-    )
-    chemistry_metadata = {
-        "64-17-5": (
-            "CCO",
-            "Flammable liquid · Protic solvent · Organic compound",
-            "Flammable · Keep away from oxidizers",
-        ),
-        "67-56-1": (
-            "CO",
-            "Flammable liquid · Protic solvent · Organic compound",
-            "Flammable · Toxic",
-        ),
-        "75-05-8": (
-            "CC#N",
-            "Flammable liquid · Polar aprotic solvent",
-            "Flammable · Toxic",
-        ),
-        "7647-01-0": (
-            "Cl",
-            "Brønsted acid · Inorganic compound",
-            "Corrosive · Segregate from bases",
-        ),
-        "7647-14-5": ("[Na+].[Cl-]", "Inorganic salt", "Ambient temperature"),
-        "64-19-7": (
-            "CC(=O)O",
-            "Brønsted acid · Organic compound",
-            "Corrosive · Flammable",
-        ),
-        "67-68-5": (
-            "CS(C)=O",
-            "Polar aprotic solvent · Organic compound",
-            "Ambient temperature",
-        ),
-        "77-86-1": (
-            "NC(CO)(CO)CO",
-            "Buffering base · Organic compound",
-            "Ambient temperature",
-        ),
-        "7550-45-0": (
-            "Cl[Ti](Cl)(Cl)Cl",
-            "Lewis acid · Inorganic compound · Moisture reactive",
-            "Corrosive · Water reactive · Segregate from bases",
-        ),
-        "109-72-8": (
-            "[Li]CCCC",
-            "Organometallic · Pyrophoric · Reducing agent",
-            "Flammable · Water reactive · Locked storage",
-        ),
-        "76189-55-4": (
-            "P(c1ccccc1)(c1ccccc1)c1ccc2ccccc2c1-c1c(P(c2ccccc2)c2ccccc2)ccc2ccccc12",
-            "Chiral ligand · Phosphine ligand · Organophosphorus compound",
-            "Ambient temperature · Keep away from oxidizers",
-        ),
-        "210169-54-3": (
-            "C1OC2=C(O1)C(=C(C=C2)P(C3=CC=CC=C3)C4=CC=CC=C4)C5=C(C=CC6=C5OCO6)P(C7=CC=CC=C7)C8=CC=CC=C8",
-            "Chiral ligand · Phosphine ligand · Organophosphorus compound",
-            "Ambient temperature · Keep away from oxidizers",
-        ),
-    }
-    frame["SMILES"] = frame["CAS number"].map(
-        lambda cas: chemistry_metadata.get(cas, ("Not available", "", ""))[0]
-    )
-    frame["Chemical labels"] = frame["CAS number"].map(
-        lambda cas: chemistry_metadata.get(cas, ("", "Unclassified", ""))[1]
-    )
-    frame["Storage constraints"] = frame["CAS number"].map(
-        lambda cas: chemistry_metadata.get(cas, ("", "", "Manual review"))[2]
-    )
-    frame["Expiry state"] = frame["Expiry date"].apply(
-        lambda value: (
-            "Expired"
-            if value < today
-            else "Expiring soon"
-            if value <= today + timedelta(days=30)
-            else "Current"
-        )
-    )
-    frame["Status"] = frame.apply(
-        lambda row: (
-            "Expired"
-            if row["Expiry state"] == "Expired"
-            else "Low stock"
-            if row["Quantity"] < 10
-            else "Available"
-        ),
-        axis=1,
-    )
-    return frame
+def load_sample_inventory(
+    today: date | None = None,
+    *,
+    db_path: str | None = None,
+) -> pd.DataFrame:
+    """Load actual reagent lots from the inventory database.
+
+    The empty state is intentional: this interface no longer invents sample
+    stock. Register or import real records before running inventory searches.
+    """
+
+    return load_inventory_frame(today=today, db_path=db_path)
 
 
 def filter_sample_inventory(
@@ -2048,7 +1861,7 @@ def empty_inventory_result(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
-    """Compile an allowlisted inventory intent into SQL plus bound parameters."""
+    """Compile an allowlisted inventory intent into a verified loaded-record filter."""
     normalized = query.lower().strip()
     empty = empty_inventory_result(frame)
     if not normalized:
@@ -2063,14 +1876,13 @@ def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
         }
 
     chemical_aliases = {
-        "ethanol": "Ethanol",
-        "methanol": "Methanol",
-        "acetonitrile": "Acetonitrile",
         "dcm": "Dichloromethane",
         "dichloromethane": "Dichloromethane",
-        "binap": "(R)-BINAP",
-        "segphos": "(S)-SEGPHOS",
     }
+    for chemical_name in frame.get("Chemical name", pd.Series(dtype=str)).dropna().unique():
+        name = str(chemical_name).strip()
+        if name:
+            chemical_aliases[name.lower()] = name
     requested_chemical = next(
         (
             canonical
@@ -2092,9 +1904,9 @@ def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
                 f"Current on-hand inventory records for {requested_chemical}."
             ),
             "query_code": (
-                "SELECT * FROM inventory\n"
-                "WHERE LOWER(chemical_name) = LOWER(?)\n"
-                "  AND quantity > ? AND status <> ?;"
+                "Loaded inventory filter\n"
+                "chemical_name = ?\n"
+                "quantity > ? AND status <> ?"
             ),
             "parameters": [requested_chemical, 0, "Expired"],
             "results": result.reset_index(drop=True),
@@ -2112,9 +1924,9 @@ def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
             "route_label": "Structured inventory query",
             "interpretation": "On-hand Sigma-Aldrich records below 10 units.",
             "query_code": (
-                "SELECT * FROM inventory\n"
-                "WHERE manufacturer = ? AND quantity < ?\n"
-                "  AND quantity > ? AND status <> ?;"
+                "Loaded inventory filter\n"
+                "manufacturer = ? AND quantity < ?\n"
+                "quantity > ? AND status <> ?"
             ),
             "parameters": ["Sigma-Aldrich", 10, 0, "Expired"],
             "results": result.reset_index(drop=True),
@@ -2129,8 +1941,8 @@ def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
             "route_label": "Structured inventory query",
             "interpretation": "Records expired or expiring within 30 days.",
             "query_code": (
-                "SELECT * FROM inventory\n"
-                "WHERE expiry_date <= CURRENT_DATE + INTERVAL '30 days';"
+                "Loaded inventory filter\n"
+                "expiry_state IN (?, ?)"
             ),
             "parameters": [],
             "results": result.reset_index(drop=True),
@@ -2142,9 +1954,8 @@ def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
             "route_label": "Structured inventory query",
             "interpretation": "Current inventory grouped by assigned storage location.",
             "query_code": (
-                "SELECT storage_location, COUNT(*) AS records\n"
-                "FROM inventory WHERE quantity > ?\n"
-                "GROUP BY storage_location;"
+                "Loaded inventory aggregation\n"
+                "quantity > ? grouped by storage_location"
             ),
             "parameters": [0],
             "results": frame[frame["Quantity"] > 0].reset_index(drop=True),
@@ -2249,7 +2060,10 @@ def execute_smarts_query(
 
 
 def route_natural_language_query(
-    query: str, frame: pd.DataFrame
+    query: str,
+    frame: pd.DataFrame,
+    *,
+    provider_environment: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Route chemistry concepts before structured inventory filters."""
     normalized = query.lower().strip()
@@ -2284,6 +2098,28 @@ def route_natural_language_query(
             "skipped": skipped,
         }
     if any(signal in normalized for signal in chemical_signals):
+        provider_result = translate_chemical_question(
+            query,
+            environ=provider_environment,
+        )
+        if provider_result.translation:
+            translation = provider_result.translation
+            result, skipped, warning = execute_smarts_query(
+                frame,
+                translation["patterns"],
+                translation["required_labels"],
+            )
+            return {
+                "route": "chemical",
+                "route_label": "Chemical meaning query",
+                "interpretation": translation["concept"],
+                "query_code": "\n".join(translation["patterns"]),
+                "parameters": translation["required_labels"],
+                "results": result,
+                "warning": warning,
+                "explanation": translation["explanation"],
+                "skipped": skipped,
+            }
         return {
             "route": "unsupported",
             "route_label": "Chemistry translation unavailable",
@@ -2293,7 +2129,7 @@ def route_natural_language_query(
             "query_code": "",
             "parameters": [],
             "results": empty_inventory_result(frame),
-            "warning": "No model-only availability answer was generated.",
+            "warning": provider_result.message,
         }
     return compile_structured_query(query, frame)
 
@@ -2404,14 +2240,30 @@ def render_stepper() -> None:
     st.markdown(f'<div class="stepper">{"".join(items)}</div>', unsafe_allow_html=True)
 
 
-def initialize_extraction_state() -> None:
-    result = get_sample_extraction_result()
-    for field, value in result.items():
+def initialize_extraction_state(contents: bytes, filename: str) -> None:
+    """Populate editable label fields from a live provider or safe manual mode."""
+
+    result = extract_label_fields(
+        contents,
+        filename,
+        environ=streamlit_provider_environment(),
+    )
+    fields = get_sample_extraction_result()
+    fields.update(result.fields)
+    for field, value in fields.items():
         st.session_state[f"add_field_{field}"] = value
+    st.session_state["add_receipt_key"] = st.session_state.get(
+        "add_receipt_key"
+    ) or str(uuid4())
+    st.session_state["add_extraction_notice"] = {
+        "status": result.status,
+        "message": result.message,
+    }
+    st.session_state["add_extraction_source"] = result.provider or "Manual entry"
+    st.session_state["add_extraction_rationale"] = result.message
     st.session_state["add_extraction_complete"] = True
     st.session_state["add_confirmation"] = None
     st.session_state["add_stage"] = "Details"
-    st.session_state.setdefault("add_order_scenario", "Unique match")
     synchronize_classification_state()
 
 
@@ -2452,7 +2304,7 @@ def render_upload_step(*, compact: bool = False) -> bytes | None:
             width="stretch",
             key="extract_label",
         ):
-            initialize_extraction_state()
+            initialize_extraction_state(contents, uploaded_file.name)
             st.rerun()
         with st.container(key="replace_label_image"):
             with st.expander("Replace label image"):
@@ -2520,7 +2372,7 @@ def render_upload_step(*, compact: bool = False) -> bytes | None:
         width="stretch",
         key="extract_label",
     ):
-        initialize_extraction_state()
+        initialize_extraction_state(contents, uploaded_file.name)
         st.rerun()
     st.markdown(
         '<p class="quiet-note">Review every extracted field before continuing to order matching.</p>',
@@ -2534,11 +2386,20 @@ def render_extraction_step() -> None:
         return
     render_section_header(
         "Step 2",
-        "Review extracted fields",
-        "Confirm the label details and correct anything that needs attention.",
+        "Review label fields",
+        "Confirm every value and complete anything the label image did not show.",
     )
+    extraction_notice = st.session_state.get("add_extraction_notice")
+    if extraction_notice:
+        message = extraction_notice.get("message", "")
+        if extraction_notice.get("status") == "failed":
+            st.warning(message)
+        elif extraction_notice.get("status") == "manual":
+            st.info(message)
+        else:
+            st.success(message)
     st.markdown(
-        '<div class="status-line"><span class="status-dot"></span>Fields are ready for review</div>',
+        '<div class="status-line"><span class="status-dot"></span>Fields are editable and require review</div>',
         unsafe_allow_html=True,
     )
     left, right = st.columns(2, gap="small")
@@ -2586,20 +2447,80 @@ def render_extraction_step() -> None:
 
 
 def render_order_card(order: dict[str, Any], selected: bool = False) -> None:
+    """Render a real pending-order candidate returned by the matching service."""
+
     selected_class = " selected" if selected else ""
+    order_reference = str(order.get("order_reference") or order.get("order_id") or "Order")
+    name = str(order.get("name") or order.get("chemical_name") or "Not recorded")
+    cas_number = str(order.get("cas_number") or "Not recorded")
+    manufacturer = str(order.get("manufacturer") or "Not recorded")
+    quantity = f'{float(order.get("quantity") or 0):g} {order.get("quantity_unit") or order.get("unit") or "unit"}'
+    raw_score = order.get("score")
+    score = f"{float(raw_score):.0%}" if raw_score is not None else "Review"
+    explanation = str(
+        order.get("explanation")
+        or "Match fields are evaluated deterministically against pending orders."
+    )
     st.markdown(
         f"""
         <div class="order-card{selected_class}">
-            <div class="order-id">{escaped(order["order_id"])} · {escaped(order["score"])} match</div>
-            <div class="order-name">{escaped(order["chemical_name"])}</div>
+            <div class="order-id">{escaped(order_reference)} · {escaped(score)} match</div>
+            <div class="order-name">{escaped(name)}</div>
             <div class="order-detail">
-                CAS {escaped(order["cas_number"])} · {escaped(order["manufacturer"])} ·
-                {escaped(order["quantity"])}<br>{escaped(order["explanation"])}
+                CAS {escaped(cas_number)} · {escaped(manufacturer)} ·
+                {escaped(quantity)}<br>{escaped(explanation)}
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def render_pending_order_import() -> None:
+    """Offer a deterministic CSV bridge while an ordering API is unavailable."""
+
+    with st.expander("Import pending orders"):
+        st.caption(
+            "Upload a CSV exported from the order system. Required: "
+            "order_reference (or order_id) and chemical_name (or name)."
+        )
+        uploaded_orders = st.file_uploader(
+            "Pending-order CSV",
+            type=["csv"],
+            key="pending_order_csv",
+            label_visibility="collapsed",
+        )
+        if uploaded_orders is None:
+            return
+        if st.button(
+            "Import pending orders",
+            width="stretch",
+            key="import_pending_orders",
+        ):
+            try:
+                frame = pd.read_csv(BytesIO(uploaded_orders.getvalue()))
+                records = frame.where(pd.notna(frame), None).to_dict(orient="records")
+                imported = import_pending_orders(
+                    records,
+                    source=f"CSV import: {uploaded_orders.name}",
+                )
+            except (ValueError, pd.errors.ParserError) as error:
+                st.error(f"Could not import the order file: {error}")
+                return
+            st.success(f"Imported or updated {len(imported)} pending order(s).")
+            clear_order_selection()
+            st.rerun()
+
+
+def _current_order_match_input() -> dict[str, Any]:
+    return {
+        "name": st.session_state.get("add_field_chemical_name", ""),
+        "cas_number": st.session_state.get("add_field_cas_number", ""),
+        "manufacturer": st.session_state.get("add_field_manufacturer", ""),
+        "specification": st.session_state.get("add_field_specification", ""),
+        "quantity": st.session_state.get("add_field_quantity", 0),
+        "quantity_unit": st.session_state.get("add_field_unit", "unit"),
+    }
 
 
 def render_order_match_step() -> None:
@@ -2608,55 +2529,80 @@ def render_order_match_step() -> None:
     render_section_header(
         "Step 3",
         "Connect the incoming order",
-        "Review the closest pending-order candidates before registration.",
+        "Matches are scored against actual pending orders. A low-confidence or "
+        "ambiguous match always requires a person to choose.",
     )
-    with st.expander("Preview match outcomes"):
-        st.selectbox(
-            "Match result",
-            ["Unique match", "Multiple matches", "No match"],
-            key="add_order_scenario",
-            on_change=clear_order_selection,
-        )
+    render_pending_order_import()
 
-    scenario = st.session_state.get("add_order_scenario", "Unique match")
-    matches = get_sample_order_matches(scenario)
-    if scenario == "Unique match":
-        selected = matches[0]
-        st.session_state["add_selected_order"] = selected["order_id"]
-        st.session_state["add_register_without_order"] = False
-        render_order_card(selected, selected=True)
-    elif scenario == "Multiple matches":
-        options = {order["order_id"]: order for order in matches}
-        selected_id = st.selectbox(
-            "Select the matching order",
-            list(options),
-            format_func=lambda value: (
-                f'{value} · {options[value]["manufacturer"]} · {options[value]["quantity"]}'
-            ),
-            key="add_selected_order",
+    match_input = _current_order_match_input()
+    if not match_input["name"] or not validate_cas_number(match_input["cas_number"]):
+        st.warning(
+            "Enter a chemical name and a CAS number with a valid check digit "
+            "before matching an incoming order."
         )
-        st.session_state["add_register_without_order"] = False
-        render_order_card(options[selected_id], selected=True)
-        with st.expander("Compare all candidates"):
-            comparison = pd.DataFrame(
-                [
-                    {
-                        "Order": order["order_id"],
-                        "Manufacturer": order["manufacturer"],
-                        "Quantity": order["quantity"],
-                        "Match": order["score"],
-                    }
-                    for order in matches
-                ]
-            )
-            st.dataframe(comparison, hide_index=True, width="stretch")
-    else:
-        st.session_state.pop("add_selected_order", None)
-        st.warning("No pending order confidently matches these label details.")
         st.checkbox(
             "Register without a linked order",
             key="add_register_without_order",
         )
+        st.session_state.pop("add_selected_order", None)
+        st.session_state.pop("add_order_match_score", None)
+        return
+
+    candidates = match_pending_orders(match_input)
+    unique_match = select_unique_order_match(candidates)
+    if unique_match:
+        reference = str(unique_match["order_reference"])
+        st.session_state["add_selected_order"] = reference
+        st.session_state["add_order_match_score"] = float(unique_match["score"])
+        st.session_state["add_register_without_order"] = False
+        render_order_card(unique_match, selected=True)
+        st.caption("Unique high-confidence match selected automatically.")
+        return
+
+    if not candidates:
+        st.session_state.pop("add_selected_order", None)
+        st.session_state.pop("add_order_match_score", None)
+        st.info("No pending order currently matches these reviewed label details.")
+        st.checkbox(
+            "Register without a linked order",
+            key="add_register_without_order",
+        )
+        return
+
+    st.session_state["add_register_without_order"] = False
+    options = {
+        str(candidate["order_reference"]): candidate
+        for candidate in candidates
+    }
+    selected_id = st.selectbox(
+        "Select the matching order",
+        list(options),
+        format_func=lambda value: (
+            f'{value} · {options[value].get("manufacturer") or "Not recorded"} '
+            f'· {float(options[value].get("score") or 0):.0%}'
+        ),
+        key="add_selected_order",
+    )
+    selected = options[selected_id]
+    st.session_state["add_order_match_score"] = float(selected["score"])
+    render_order_card(selected, selected=True)
+    with st.expander("Compare pending-order candidates"):
+        comparison = pd.DataFrame(
+            [
+                {
+                    "Order": candidate["order_reference"],
+                    "Chemical": candidate.get("name"),
+                    "Manufacturer": candidate.get("manufacturer"),
+                    "Quantity": (
+                        f'{float(candidate.get("quantity") or 0):g} '
+                        f'{candidate.get("quantity_unit") or "unit"}'
+                    ),
+                    "Match": f'{float(candidate.get("score") or 0):.0%}',
+                }
+                for candidate in candidates
+            ]
+        )
+        st.dataframe(comparison, hide_index=True, width="stretch")
 
 
 def synchronize_classification_state(
@@ -2737,6 +2683,28 @@ def render_storage_step() -> None:
         f'<p class="quiet-note">{escaped(st.session_state.get("add_classification_rationale", ""))}</p>',
         unsafe_allow_html=True,
     )
+    if not classification["labels"] and not classification["constraints"]:
+        if st.button(
+            "Classify chemical function",
+            width="stretch",
+            key="run_chemical_classification",
+        ):
+            result = classify_cas_with_gemini(
+                st.session_state.get("add_field_cas_number", ""),
+                chemical_name=st.session_state.get("add_field_chemical_name", ""),
+                environ=streamlit_provider_environment(),
+            )
+            profile = result.classification
+            st.session_state["add_classification_cas"] = profile["cas_number"]
+            st.session_state["add_chemical_labels"] = list(profile["labels"])
+            st.session_state["add_storage_constraints"] = list(profile["constraints"])
+            st.session_state["add_classification_confidence"] = profile["confidence"]
+            st.session_state["add_classification_source"] = profile["cache_status"]
+            st.session_state["add_classification_rationale"] = profile["rationale"]
+            st.session_state["add_classification_notice"] = result.message
+            st.rerun()
+    if st.session_state.get("add_classification_notice"):
+        st.info(st.session_state["add_classification_notice"])
 
     decision = determine_storage_location(list(constraints))
     signature = tuple(sorted(constraints))
@@ -2783,17 +2751,27 @@ def current_registration_payload() -> dict[str, Any]:
     if st.session_state.get("add_register_without_order"):
         selected_order = "Not linked"
     expiry = st.session_state.get("add_field_expiry_date")
+    expiry_value = expiry.isoformat() if hasattr(expiry, "isoformat") else ""
     return {
         "chemical_name": st.session_state.get("add_field_chemical_name", ""),
         "cas_number": st.session_state.get("add_field_cas_number", ""),
         "specification": st.session_state.get("add_field_specification", ""),
         "batch_number": st.session_state.get("add_field_batch_number", ""),
         "manufacturer": st.session_state.get("add_field_manufacturer", ""),
-        "expiry_date": expiry.isoformat() if hasattr(expiry, "isoformat") else str(expiry),
+        "expiry_date": expiry_value,
         "quantity": st.session_state.get("add_field_quantity", 0),
         "unit": st.session_state.get("add_field_unit", ""),
         "confidence": st.session_state.get("add_field_confidence", 0) / 100,
+        "extraction_source": st.session_state.get(
+            "add_extraction_source", "Manual entry"
+        ),
+        "extraction_rationale": st.session_state.get(
+            "add_extraction_rationale", ""
+        ),
         "pending_order": selected_order,
+        "match_score": st.session_state.get("add_order_match_score"),
+        "receipt_key": st.session_state.get("add_receipt_key", ""),
+        "image_signature": st.session_state.get("add_file_signature", ""),
         "chemical_labels": list(st.session_state.get("add_chemical_labels", [])),
         "storage_constraints": list(
             st.session_state.get("add_storage_constraints", [])
@@ -2817,6 +2795,7 @@ def current_registration_payload() -> dict[str, Any]:
 
 def clear_order_selection() -> None:
     st.session_state.pop("add_selected_order", None)
+    st.session_state.pop("add_order_match_score", None)
     st.session_state.pop("add_register_without_order", None)
     st.session_state.pop("add_confirmation", None)
 
@@ -2980,20 +2959,33 @@ def render_confirmation_step() -> None:
         disabled=button_disabled,
         key="confirm_registration",
     ):
-        st.session_state["add_confirmation"] = confirm_sample_registration(
-            payload,
-            reviewed=reviewed,
-        )
+        try:
+            st.session_state["add_confirmation"] = confirm_sample_registration(
+                payload,
+                reviewed=reviewed,
+            )
+        except (ValueError, RuntimeError) as error:
+            st.error(f"The record was not saved: {error}")
 
     confirmation = st.session_state.get("add_confirmation")
     if confirmation:
+        if confirmation.get("classification_warning"):
+            st.warning(
+                "The reagent was registered, but its reusable CAS classification "
+                f"cache could not be updated: {confirmation['classification_warning']}"
+            )
+        if confirmation.get("order_warning"):
+            st.warning(
+                "The reagent was registered, but its selected order could not be "
+                f"marked received: {confirmation['order_warning']}"
+            )
         st.markdown(
             f"""
             <div class="confirmation">
                 <div class="confirmation-id">{escaped(confirmation["record_id"])}</div>
-                <div class="confirmation-title">Registration draft complete</div>
+                <div class="confirmation-title">Registration recorded</div>
                 <p class="section-copy">
-                    The reviewed record is ready to sync with the inventory service.
+                    The reviewed record is now available in Inventory search.
                 </p>
             </div>
             """,
@@ -3304,6 +3296,7 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
         st.session_state["query_natural_plan"] = route_natural_language_query(
             st.session_state.get("query_natural_text", ""),
             frame,
+            provider_environment=streamlit_provider_environment(),
         )
 
     with st.expander("How answers are verified"):
@@ -3350,9 +3343,9 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
     elif plan["route"] == "structured":
         trace = [
             ("01 · Interpret", "Inventory intent"),
-            ("02 · Compile", "Bound SQL filter"),
-            ("03 · Execute", "Inventory database"),
-            ("04 · Return", "Live record state"),
+            ("02 · Compile", "Approved record filter"),
+            ("03 · Apply", "Loaded inventory records"),
+            ("04 · Return", "Verified record state"),
         ]
     else:
         trace = [
@@ -3368,8 +3361,7 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
         unsafe_allow_html=True,
     )
     if plan["query_code"]:
-        code_language = "sql" if plan["route"] == "structured" else None
-        st.code(plan["query_code"], language=code_language)
+        st.code(plan["query_code"])
     if plan.get("parameters"):
         st.caption(
             "Bound parameters / required labels: "
@@ -3409,7 +3401,7 @@ def render_query_tab() -> None:
     if mode == "Basic filters" or st.session_state.get("query_natural_plan"):
         render_inventory_results(results)
     st.markdown(
-        '<p class="quiet-note">Every answer is derived from the loaded inventory snapshot; the language layer never invents stock state.</p>',
+        '<p class="quiet-note">Every answer is derived from the loaded inventory records; the language layer never invents stock state.</p>',
         unsafe_allow_html=True,
     )
 

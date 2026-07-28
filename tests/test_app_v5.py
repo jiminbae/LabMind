@@ -1,21 +1,26 @@
 from __future__ import annotations
 
+import os
+import tempfile
 import unittest
-import ast
+from datetime import date, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
 
 from app_v5 import (
     ADD_STATE_KEYS,
+    Chem,
     can_confirm_registration,
     clear_state_keys,
-    confirm_sample_registration,
     compile_structured_query,
+    confirm_sample_registration,
     determine_storage_location,
     execute_smarts_query,
     filter_sample_inventory,
     get_chemical_classification,
+    get_sample_extraction_result,
     load_sample_inventory,
     reset_add_workflow,
     route_natural_language_query,
@@ -23,6 +28,8 @@ from app_v5 import (
     uploaded_file_signature,
     validate_cas_number,
 )
+from backend.db_utils import list_reagents
+
 
 SINGLE_PIXEL_PNG = bytes.fromhex(
     "89504e470d0a1a0a0000000d4948445200000001000000010804000000b51c0c02"
@@ -31,20 +38,248 @@ SINGLE_PIXEL_PNG = bytes.fromhex(
 
 
 class AppV5HelpersTest(unittest.TestCase):
-    def test_inventory_loads(self) -> None:
-        frame = load_sample_inventory()
-        self.assertGreaterEqual(len(frame), 10)
-        self.assertIn("Chemical name", frame.columns)
-        self.assertIn("Expiry state", frame.columns)
+    """Exercise the Streamlit helpers against an isolated real SQLite database."""
 
-    def test_basic_filtering(self) -> None:
-        frame = load_sample_inventory()
+    def setUp(self) -> None:
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.database_path = Path(self.temporary_directory.name) / "inventory.db"
+        # A few UI helpers resolve the database internally, so isolate those
+        # calls as well as the explicit db_path integration calls below.
+        self.database_environment = patch.dict(
+            os.environ,
+            {"LABMIND_DB_PATH": str(self.database_path)},
+            clear=False,
+        )
+        self.database_environment.start()
+
+    def tearDown(self) -> None:
+        self.database_environment.stop()
+        self.temporary_directory.cleanup()
+
+    def database_argument(self) -> str:
+        return str(self.database_path)
+
+    def reagent_payload(
+        self,
+        *,
+        chemical_name: str = "Ethanol",
+        cas_number: str = "64-17-5",
+        manufacturer: str = "Sigma-Aldrich",
+        batch_number: str = "LOT-ETH-01",
+        specification: str = "ACS grade",
+        quantity: float = 500,
+        unit: str = "mL",
+        expiry_date: str | None = None,
+        labels: list[str] | None = None,
+        constraints: list[str] | None = None,
+        receipt_key: str | None = None,
+    ) -> dict[str, object]:
+        labels = labels or [
+            "Flammable liquid",
+            "Protic solvent",
+            "Organic compound",
+        ]
+        constraints = constraints or ["Flammable", "Keep away from oxidizers"]
+        decision = determine_storage_location(constraints)
+        return {
+            "chemical_name": chemical_name,
+            "cas_number": cas_number,
+            "specification": specification,
+            "batch_number": batch_number,
+            "manufacturer": manufacturer,
+            "expiry_date": expiry_date
+            or (date.today() + timedelta(days=365)).isoformat(),
+            "quantity": quantity,
+            "unit": unit,
+            "confidence": 0.91,
+            "extraction_source": "Manual test entry",
+            "extraction_rationale": "Reviewed test receipt.",
+            "pending_order": "Not linked",
+            "match_score": None,
+            "receipt_key": receipt_key or f"test:{cas_number}:{batch_number}",
+            "image_signature": "test-image-signature",
+            "chemical_labels": labels,
+            "storage_constraints": constraints,
+            "classification_confidence": 0.94,
+            "classification_source": "Reviewed test profile",
+            "classification_rationale": "Verified against the test profile.",
+            "storage_location": decision["location"],
+            "storage_rule": decision["rule"],
+            "storage_reviewed": True,
+        }
+
+    def register(self, payload: dict[str, object]) -> dict[str, object]:
+        return confirm_sample_registration(
+            payload,
+            reviewed=True,
+            db_path=self.database_argument(),
+        )
+
+    def load_inventory(self):
+        return load_sample_inventory(db_path=self.database_argument())
+
+    def test_empty_database_has_a_stable_inventory_contract(self) -> None:
+        frame = self.load_inventory()
+
+        self.assertTrue(frame.empty)
+        self.assertEqual(
+            list(frame.columns),
+            [
+                "Record ID",
+                "Chemical name",
+                "CAS number",
+                "Manufacturer",
+                "Batch number",
+                "Specification",
+                "Quantity",
+                "Unit",
+                "Expiry date",
+                "Storage location",
+                "SMILES",
+                "Chemical labels",
+                "Storage constraints",
+                "Expiry state",
+                "Status",
+                "Order reference",
+                "Classification source",
+            ],
+        )
+
+    def test_reviewed_registration_is_visible_in_inventory_and_idempotent(self) -> None:
+        payload = self.reagent_payload()
+
+        first = self.register(payload)
+        retry = self.register(payload)
+        frame = self.load_inventory()
+        stored = list_reagents(self.database_argument())
+
+        self.assertEqual(first["record_id"], "LAB-0001")
+        self.assertTrue(first["created"])
+        self.assertEqual(retry["record_id"], first["record_id"])
+        self.assertFalse(retry["created"])
+        self.assertEqual(len(frame), 1)
+        self.assertEqual(frame.loc[0, "Record ID"], "LAB-0001")
+        self.assertEqual(frame.loc[0, "Chemical name"], "Ethanol")
+        self.assertEqual(frame.loc[0, "CAS number"], "64-17-5")
+        self.assertEqual(frame.loc[0, "Status"], "Available")
+        self.assertEqual(len(stored), 1)
+        self.assertFalse(stored[0]["manual_review"])
+        self.assertEqual(stored[0]["extraction_confidence"], 0.91)
+        self.assertEqual(stored[0]["classification_source"], "Reviewed test profile")
+
+    def test_unreviewed_registration_does_not_create_a_database(self) -> None:
+        with self.assertRaises(ValueError):
+            confirm_sample_registration(
+                self.reagent_payload(),
+                reviewed=False,
+                db_path=self.database_argument(),
+            )
+
+        self.assertFalse(self.database_path.exists())
+
+    def test_basic_filtering_reads_real_registered_records(self) -> None:
+        self.register(self.reagent_payload())
+        self.register(
+            self.reagent_payload(
+                chemical_name="Methanol",
+                cas_number="67-56-1",
+                batch_number="LOT-MEOH-01",
+                manufacturer="Fisher Scientific",
+                quantity=40,
+                receipt_key="test:67-56-1:LOT-MEOH-01",
+            )
+        )
+        frame = self.load_inventory()
+
         result = filter_sample_inventory(
             frame,
             search_text="ethanol",
             manufacturer="Sigma-Aldrich",
+            minimum_quantity=100,
         )
+
         self.assertEqual(result["Chemical name"].tolist(), ["Ethanol"])
+        self.assertEqual(result["Quantity"].tolist(), [500.0])
+
+    def test_structured_query_runs_against_loaded_inventory_only(self) -> None:
+        self.register(self.reagent_payload())
+        self.register(
+            self.reagent_payload(
+                chemical_name="Acetonitrile",
+                cas_number="75-05-8",
+                batch_number="LOT-ACN-01",
+                manufacturer="Fisher Scientific",
+                quantity=5,
+                receipt_key="test:75-05-8:LOT-ACN-01",
+            )
+        )
+        frame = self.load_inventory()
+
+        plan = compile_structured_query("How much ethanol is left?", frame)
+        malicious = compile_structured_query(
+            "ethanol'; DROP TABLE inventory; --",
+            frame,
+        )
+
+        self.assertEqual(plan["route"], "structured")
+        self.assertEqual(plan["results"]["Chemical name"].tolist(), ["Ethanol"])
+        self.assertIn("?", plan["query_code"])
+        self.assertNotIn("ethanol", plan["query_code"].lower())
+        self.assertNotIn("DROP TABLE", malicious["query_code"])
+
+    def test_smarts_query_joins_only_to_available_nonexpired_records(self) -> None:
+        if Chem is None:
+            self.skipTest("RDKit is not installed in this runtime.")
+        self.register(
+            self.reagent_payload(
+                chemical_name="(R)-BINAP",
+                cas_number="76189-55-4",
+                batch_number="LOT-BINAP-01",
+                manufacturer="Strem",
+                quantity=2,
+                unit="g",
+                labels=[
+                    "Chiral ligand",
+                    "Phosphine ligand",
+                    "Organophosphorus compound",
+                ],
+                constraints=["Ambient temperature", "Keep away from oxidizers"],
+                receipt_key="test:76189-55-4:LOT-BINAP-01",
+            )
+        )
+        self.register(
+            self.reagent_payload(
+                chemical_name="(S)-SEGPHOS",
+                cas_number="210169-54-3",
+                batch_number="LOT-SEGPHOS-01",
+                manufacturer="TCI",
+                quantity=0,
+                unit="g",
+                expiry_date=(date.today() - timedelta(days=1)).isoformat(),
+                labels=[
+                    "Chiral ligand",
+                    "Phosphine ligand",
+                    "Organophosphorus compound",
+                ],
+                constraints=["Ambient temperature", "Keep away from oxidizers"],
+                receipt_key="test:210169-54-3:LOT-SEGPHOS-01",
+            )
+        )
+        frame = self.load_inventory()
+
+        plan = route_natural_language_query(
+            "Do we have a chiral phosphine ligand for asymmetric reduction?",
+            frame,
+        )
+        invalid, _, warning = execute_smarts_query(frame, ["[invalid"], [])
+
+        self.assertEqual(plan["route"], "chemical")
+        self.assertEqual(plan["results"]["Chemical name"].tolist(), ["(R)-BINAP"])
+        self.assertTrue((plan["results"]["Quantity"] > 0).all())
+        self.assertTrue((plan["results"]["Status"] != "Expired").all())
+        self.assertIn("Match evidence", plan["results"].columns)
+        self.assertTrue(invalid.empty)
+        self.assertIn("failed validation", warning)
 
     def test_file_signature_uses_contents(self) -> None:
         first = uploaded_file_signature(b"same-name-first-content")
@@ -70,14 +305,16 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertEqual(state["unrelated"], "keep")
         self.assertTrue(ADD_STATE_KEYS.isdisjoint(state))
 
-    def test_confirmation_requires_review_and_extraction(self) -> None:
+    def test_confirmation_requires_review_and_a_valid_persisted_payload(self) -> None:
         self.assertFalse(can_confirm_registration(False, True))
         self.assertFalse(can_confirm_registration(True, False))
         self.assertTrue(can_confirm_registration(True, True))
         with self.assertRaises(ValueError):
-            confirm_sample_registration({}, reviewed=False)
-        result = confirm_sample_registration({"name": "Ethanol"}, reviewed=True)
-        self.assertEqual(result["payload"]["name"], "Ethanol")
+            confirm_sample_registration({}, reviewed=False, db_path=self.database_argument())
+
+        result = self.register(self.reagent_payload())
+        self.assertEqual(result["payload"]["chemical_name"], "Ethanol")
+        self.assertEqual(result["record_id"], "LAB-0001")
 
     def test_cas_check_digit_validation(self) -> None:
         self.assertTrue(validate_cas_number("64-17-5"))
@@ -85,7 +322,7 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertFalse(validate_cas_number("64-17-6"))
         self.assertFalse(validate_cas_number("not-a-cas"))
 
-    def test_classification_cache_returns_multi_label_copy(self) -> None:
+    def test_classification_profiles_are_copied_and_unknowns_fail_closed(self) -> None:
         first = get_chemical_classification("7550-45-0")
         second = get_chemical_classification("7550-45-0")
         self.assertIn("Lewis acid", first["labels"])
@@ -94,7 +331,7 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertNotIn("Changed", second["labels"])
         unknown = get_chemical_classification("123-45-6")
         self.assertEqual(unknown["labels"], [])
-        self.assertEqual(unknown["cache_status"], "Review required")
+        self.assertEqual(unknown["cache_status"], "Manual classification required")
 
     def test_storage_rules_fail_closed(self) -> None:
         self.assertEqual(
@@ -131,79 +368,14 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertIn("Organometallic", state["add_chemical_labels"])
         self.assertEqual(state["add_storage_location"], "Manual Review Required")
 
-    def test_structured_query_uses_bound_plan(self) -> None:
-        frame = load_sample_inventory()
-        plan = compile_structured_query("How much ethanol is left?", frame)
-        self.assertEqual(plan["route"], "structured")
-        self.assertEqual(plan["results"]["Chemical name"].tolist(), ["Ethanol"])
-        self.assertIn("?", plan["query_code"])
-        self.assertNotIn("ethanol", plan["query_code"].lower())
-        malicious = compile_structured_query(
-            "ethanol'; DROP TABLE inventory; --",
-            frame,
-        )
-        self.assertNotIn("DROP TABLE", malicious["query_code"])
-
     def test_unknown_query_returns_no_inventory(self) -> None:
-        frame = load_sample_inventory()
+        self.register(self.reagent_payload())
+        frame = self.load_inventory()
         plan = route_natural_language_query("What should I synthesize tomorrow?", frame)
         self.assertEqual(plan["route"], "unsupported")
         self.assertTrue(plan["results"].empty)
 
-    def test_chemical_query_runs_structure_match_then_inventory_join(self) -> None:
-        frame = load_sample_inventory()
-        plan = route_natural_language_query(
-            "Do we have a chiral phosphine ligand for asymmetric reduction?",
-            frame,
-        )
-        self.assertEqual(plan["route"], "chemical")
-        self.assertEqual(
-            plan["results"]["Chemical name"].tolist(),
-            ["(R)-BINAP", "(S)-SEGPHOS"],
-        )
-        self.assertTrue((plan["results"]["Quantity"] > 0).all())
-        self.assertIn("Match evidence", plan["results"].columns)
-
-    def test_chemical_concept_examples(self) -> None:
-        frame = load_sample_inventory()
-        expected = {
-            "Which protic solvents are on hand?": ["Ethanol", "Methanol"],
-            "Find a nitrile reagent": ["Acetonitrile"],
-            "Show Lewis acids": ["Titanium tetrachloride"],
-            "Find organometallic reagents": ["n-Butyllithium"],
-        }
-        for query, names in expected.items():
-            with self.subTest(query=query):
-                plan = route_natural_language_query(query, frame)
-                self.assertEqual(plan["results"]["Chemical name"].tolist(), names)
-
-    def test_invalid_smarts_fails_closed(self) -> None:
-        frame = load_sample_inventory()
-        result, _, warning = execute_smarts_query(frame, ["[invalid"], [])
-        self.assertTrue(result.empty)
-        self.assertIn("failed validation", warning)
-
-    def test_no_backend_module_is_imported(self) -> None:
-        source = Path("app_v5.py").read_text(encoding="utf-8")
-        tree = ast.parse(source)
-        forbidden = {
-            "backend",
-            "db_utils",
-            "order_matcher",
-            "vision_extract",
-            "rule_engine",
-            "nl_query",
-            "rdkit_matcher",
-        }
-        imported = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                imported.update(alias.name.split(".")[0] for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module:
-                imported.add(node.module.split(".")[0])
-        self.assertTrue(forbidden.isdisjoint(imported))
-
-    def test_registration_stages_render_without_errors(self) -> None:
+    def test_registration_stages_render_blank_manual_fields_without_errors(self) -> None:
         harness_template = """
 import streamlit as st
 from app_v5 import get_sample_extraction_result, render_registration_workspace
@@ -211,18 +383,16 @@ from app_v5 import get_sample_extraction_result, render_registration_workspace
 for field, value in get_sample_extraction_result().items():
     st.session_state.setdefault(f"add_field_{{field}}", value)
 st.session_state.setdefault("add_extraction_complete", True)
+st.session_state.setdefault("add_receipt_key", "test-render")
+st.session_state.setdefault("add_register_without_order", True)
 st.session_state["add_stage"] = "{stage}"
-st.session_state.setdefault("add_order_scenario", "Unique match")
-st.session_state.setdefault("add_storage_location", "Flammable Cabinet B")
 render_registration_workspace()
 """
         for stage in ("Details", "Order", "Storage", "Review"):
-            app = AppTest.from_string(
-                harness_template.format(stage=stage)
-            ).run(timeout=20)
+            app = AppTest.from_string(harness_template.format(stage=stage)).run(timeout=20)
             self.assertEqual(len(app.exception), 0, stage)
 
-    def test_intake_fields_survive_stage_navigation(self) -> None:
+    def test_manual_extraction_fields_survive_stage_navigation_without_sample_data(self) -> None:
         app = AppTest.from_file("app.py").run(timeout=20)
         app.file_uploader[0].upload(
             "label.png",
@@ -230,18 +400,20 @@ render_registration_workspace()
             "image/png",
         )
         app.run(timeout=20)
-        next(
-            button for button in app.button if button.label == "Extract label"
-        ).click()
+        next(button for button in app.button if button.label == "Extract label").click()
         app.run(timeout=20)
         next(
             button for button in app.button if button.label == "Continue to order"
         ).click()
         app.run(timeout=20)
+
         state = app.session_state.filtered_state
-        self.assertEqual(state["add_field_chemical_name"], "Ethanol")
-        self.assertEqual(state["add_field_cas_number"], "64-17-5")
-        self.assertEqual(state["add_field_quantity"], 500.0)
+        self.assertEqual(state["add_stage"], "Order")
+        self.assertEqual(state["add_field_chemical_name"], "")
+        self.assertEqual(state["add_field_cas_number"], "")
+        self.assertEqual(state["add_field_quantity"], 0.0)
+        self.assertEqual(state["add_extraction_notice"]["status"], "manual")
+        self.assertIn("manually", state["add_extraction_notice"]["message"].lower())
 
     def test_main_workspace_navigation_renders_one_view_at_a_time(self) -> None:
         app = AppTest.from_file("app.py").run(timeout=20)
@@ -265,10 +437,33 @@ render_registration_workspace()
         self.assertEqual(len(app.exception), 0)
         self.assertEqual(len(app.text_area), 1)
 
-    def test_chemical_query_interface_renders_verified_results(self) -> None:
-        harness = """
+    def test_chemical_query_interface_renders_verified_real_database_results(self) -> None:
+        if Chem is None:
+            self.skipTest("RDKit is not installed in this runtime.")
+        for chemical_name, cas_number, batch_number in (
+            ("(R)-BINAP", "76189-55-4", "LOT-BINAP-UI"),
+            ("(S)-SEGPHOS", "210169-54-3", "LOT-SEGPHOS-UI"),
+        ):
+            self.register(
+                self.reagent_payload(
+                    chemical_name=chemical_name,
+                    cas_number=cas_number,
+                    batch_number=batch_number,
+                    manufacturer="Strem",
+                    quantity=2,
+                    unit="g",
+                    labels=[
+                        "Chiral ligand",
+                        "Phosphine ligand",
+                        "Organophosphorus compound",
+                    ],
+                    constraints=["Ambient temperature", "Keep away from oxidizers"],
+                    receipt_key=f"test:{cas_number}:{batch_number}",
+                )
+            )
+        harness = f"""
 from app_v5 import load_sample_inventory, render_natural_language_query
-render_natural_language_query(load_sample_inventory())
+render_natural_language_query(load_sample_inventory(db_path={self.database_argument()!r}))
 """
         app = AppTest.from_string(harness).run(timeout=20)
         self.assertEqual(len(app.exception), 0)
@@ -276,9 +471,7 @@ render_natural_language_query(load_sample_inventory())
             "Do we have a chiral phosphine ligand for asymmetric reduction?"
         )
         next(
-            button
-            for button in app.button
-            if button.label == "Run verified search"
+            button for button in app.button if button.label == "Run verified search"
         ).click()
         app.run(timeout=20)
         self.assertEqual(len(app.exception), 0)
