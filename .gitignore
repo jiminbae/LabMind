@@ -4,3 +4,5 @@
 __pycache__/
 *.py[cod]
 .review/
+/inventory.db
+/inventory.db-journal
