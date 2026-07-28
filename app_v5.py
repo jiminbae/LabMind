@@ -379,7 +379,7 @@ def apply_theme() -> None:
         .stepper {
             background: transparent;
             display: grid;
-            gap: 12px;
+            gap: 8px;
             grid-template-columns: repeat(5, 1fr);
             margin: 0 0 var(--space-1);
         }
@@ -391,7 +391,7 @@ def apply_theme() -> None:
             color: var(--tertiary);
             font-size: 12px;
             overflow: hidden;
-            padding: 13px 2px 0;
+            padding: 10px 2px 0;
             position: relative;
             text-align: left;
             text-overflow: ellipsis;
@@ -511,22 +511,24 @@ def apply_theme() -> None:
             border: 1px solid var(--line);
             border-radius: var(--radius-card);
             box-shadow: var(--shadow);
+            gap: var(--space-2);
             overflow: hidden;
+            padding: 20px;
         }
 
         .st-key-upload_panel > div,
         .st-key-review_placeholder > div,
         .st-key-registration_panel > div,
         .st-key-query_panel > div {
-            padding: var(--space-4);
+            padding: 0;
         }
 
         div[data-testid="stFileUploader"] section {
             background: rgba(245, 245, 247, 0.72);
             border: 1px dashed var(--line-strong);
             border-radius: var(--radius-control);
-            min-height: 142px;
-            padding: var(--space-4);
+            min-height: 116px;
+            padding: 20px;
             transition: border-color .18s ease, background .18s ease,
                 transform .18s ease;
         }
@@ -831,8 +833,74 @@ def apply_theme() -> None:
             background: rgba(245, 245, 247, 0.78);
             border-radius: var(--radius-control);
             display: grid;
-            gap: 7px;
-            padding: 13px 14px;
+            gap: 5px;
+            padding: 10px 12px;
+        }
+
+        .compact-upload-header {
+            min-width: 0;
+        }
+
+        .compact-upload-header .section-eyebrow {
+            color: var(--green);
+            margin-bottom: 5px;
+        }
+
+        .compact-upload-title {
+            color: var(--ink);
+            font-size: 22px;
+            font-weight: 680;
+            letter-spacing: -0.035em;
+            line-height: 1.12;
+            margin: 0;
+        }
+
+        .compact-upload-file {
+            color: var(--secondary);
+            font-size: 12px;
+            line-height: 1.45;
+            margin: 5px 0 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .st-key-label_preview,
+        .st-key-compact_label_preview {
+            background: rgba(245, 245, 247, 0.72);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            overflow: hidden;
+            padding: 8px;
+        }
+
+        .st-key-label_preview > div[data-testid="stVerticalBlock"],
+        .st-key-compact_label_preview > div[data-testid="stVerticalBlock"] {
+            gap: 0;
+        }
+
+        .st-key-label_preview [data-testid="stImage"] img,
+        .st-key-label_preview [data-testid="stImageContainer"] img {
+            display: block;
+            max-height: 320px;
+            object-fit: contain;
+            width: 100%;
+        }
+
+        .st-key-compact_label_preview [data-testid="stImage"] img,
+        .st-key-compact_label_preview [data-testid="stImageContainer"] img {
+            display: block;
+            max-height: 156px;
+            object-fit: contain;
+            width: 100%;
+        }
+
+        .st-key-replace_label_image div[data-testid="stExpander"] {
+            margin: 0;
+        }
+
+        .st-key-replace_label_image div[data-testid="stExpander"] summary {
+            min-height: 42px;
         }
 
         .upload-meta-name {
@@ -866,15 +934,16 @@ def apply_theme() -> None:
 
         .summary-grid {
             display: grid;
-            gap: 10px;
+            align-items: start;
+            gap: 8px;
             grid-template-columns: repeat(4, minmax(0, 1fr));
-            margin-top: 13px;
+            margin-top: 10px;
         }
 
         .meta-item, .summary-item {
             background: rgba(245, 245, 247, 0.72);
             border-radius: 13px;
-            padding: 12px 13px;
+            padding: 10px 12px;
         }
 
         .meta-label, .summary-label {
@@ -900,8 +969,110 @@ def apply_theme() -> None:
             font-size: 13px;
             font-weight: 600;
             gap: 9px;
-            margin: 4px 0 16px;
-            padding: 11px 13px;
+            margin: 2px 0 6px;
+            padding: 10px 12px;
+        }
+
+        .review-summary {
+            display: grid;
+            gap: var(--space-2);
+            margin-top: 10px;
+        }
+
+        .review-summary-group {
+            display: grid;
+            gap: 8px;
+        }
+
+        .review-summary-heading {
+            color: var(--secondary);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+        }
+
+        .review-identity-grid {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .review-summary-stack {
+            display: grid;
+            gap: 8px;
+        }
+
+        .review-summary-stack .summary-item {
+            min-height: 0;
+        }
+
+        .summary-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 7px;
+        }
+
+        .summary-chip {
+            background: rgba(0, 113, 227, 0.08);
+            border-radius: 999px;
+            color: #0068d1;
+            display: inline-flex;
+            font-size: 12px;
+            font-weight: 620;
+            line-height: 1.35;
+            padding: 5px 8px;
+        }
+
+        .summary-chip.constraint {
+            background: rgba(169, 93, 0, 0.09);
+            color: #8a4c00;
+        }
+
+        .storage-location-card {
+            align-items: center;
+            background: rgba(36, 138, 61, 0.08);
+            border: 1px solid rgba(31, 117, 53, 0.14);
+            border-radius: 13px;
+            display: flex;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 11px 12px;
+        }
+
+        .storage-location-card .summary-label {
+            margin-bottom: 0;
+        }
+
+        .storage-location-card .summary-value {
+            color: #1f7535;
+            text-align: right;
+        }
+
+        .storage-rule {
+            align-items: flex-start;
+            display: flex;
+            gap: 9px;
+            margin-top: 7px;
+        }
+
+        .storage-rule-code {
+            background: rgba(0, 0, 0, 0.07);
+            border-radius: 7px;
+            color: var(--ink);
+            flex: 0 0 auto;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .02em;
+            padding: 4px 7px;
+        }
+
+        .storage-rule-copy {
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 560;
+            line-height: 1.45;
         }
 
         .status-dot {
@@ -1253,9 +1424,9 @@ def apply_theme() -> None:
         }
 
         .summary-grid {
-            gap: var(--space-2);
+            gap: 8px;
             grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-            margin-top: var(--space-3);
+            margin-top: 10px;
         }
 
         .query-trace {
@@ -1425,11 +1596,15 @@ def apply_theme() -> None:
                 grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
             }
 
-            .st-key-upload_panel > div,
-            .st-key-review_placeholder > div,
-            .st-key-registration_panel > div,
-            .st-key-query_panel > div {
-                padding: 20px;
+            .review-identity-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .st-key-upload_panel,
+            .st-key-review_placeholder,
+            .st-key-registration_panel,
+            .st-key-query_panel {
+                padding: 16px;
             }
         }
 
@@ -1453,6 +1628,20 @@ def apply_theme() -> None:
 
             .section-title {
                 font-size: 28px;
+            }
+
+            .review-identity-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .storage-location-card {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 4px;
+            }
+
+            .storage-location-card .summary-value {
+                text-align: left;
             }
 
             .st-key-primary_view button[data-variant="segmented_control"],
@@ -1646,6 +1835,16 @@ def clear_state_keys(
 ) -> None:
     for key in keys:
         state.pop(key, None)
+
+
+def preserve_add_workflow_state(
+    state: MutableMapping[str, Any] | None = None,
+) -> None:
+    """Keep stage-specific widget values when their controls leave the screen."""
+    target = st.session_state if state is None else state
+    for key in ADD_STATE_KEYS:
+        if key in target:
+            target[key] = target[key]
 
 
 def reset_add_workflow(state: MutableMapping[str, Any] | None = None) -> None:
@@ -2216,13 +2415,61 @@ def initialize_extraction_state() -> None:
     synchronize_classification_state()
 
 
-def render_upload_step() -> bytes | None:
+def render_upload_step(*, compact: bool = False) -> bytes | None:
+    upload_key = f"label_upload_{st.session_state.get('add_upload_nonce', 0)}"
+    uploaded_file = st.session_state.get(upload_key)
+
+    if uploaded_file is not None:
+        contents = uploaded_file.getvalue()
+        signature = uploaded_file_signature(contents)
+        if st.session_state.get("add_file_signature") != signature:
+            clear_state_keys(st.session_state)
+            st.session_state["add_file_signature"] = signature
+            st.session_state["add_upload_time"] = datetime.now().strftime("%H:%M")
+        compact = compact and bool(
+            st.session_state.get("add_extraction_complete")
+        )
+
+    if compact and uploaded_file is not None:
+        uploaded_at = st.session_state.get("add_upload_time", "—")
+        st.markdown(
+            f"""
+            <div class="compact-upload-header">
+                <div class="section-eyebrow">Step 1 · Complete</div>
+                <h2 class="compact-upload-title">Label captured</h2>
+                <p class="compact-upload-file" title="{escaped(uploaded_file.name)}">
+                    {escaped(uploaded_file.name)} · {format_file_size(len(contents))} · {uploaded_at}
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.container(key="compact_label_preview"):
+            st.image(uploaded_file, width="stretch")
+        if st.button(
+            "Re-extract label",
+            type="primary",
+            width="stretch",
+            key="extract_label",
+        ):
+            initialize_extraction_state()
+            st.rerun()
+        with st.container(key="replace_label_image"):
+            with st.expander("Replace label image"):
+                st.file_uploader(
+                    "Reagent label",
+                    type=["png", "jpg", "jpeg", "webp"],
+                    accept_multiple_files=False,
+                    key=upload_key,
+                    label_visibility="collapsed",
+                )
+        return contents
+
     render_section_header(
         "Step 1",
         "Add a reagent label",
         "Choose a clear photo of the bottle or package label.",
     )
-    upload_key = f"label_upload_{st.session_state.get('add_upload_nonce', 0)}"
     uploaded_file = st.file_uploader(
         "Reagent label",
         type=["png", "jpg", "jpeg", "webp"],
@@ -2244,7 +2491,8 @@ def render_upload_step() -> bytes | None:
         st.session_state["add_file_signature"] = signature
         st.session_state["add_upload_time"] = datetime.now().strftime("%H:%M")
 
-    st.image(uploaded_file, width="stretch")
+    with st.container(key="label_preview"):
+        st.image(uploaded_file, width="stretch")
     uploaded_at = st.session_state.get("add_upload_time", "—")
     st.markdown(
         f"""
@@ -2273,6 +2521,7 @@ def render_upload_step() -> bytes | None:
         key="extract_label",
     ):
         initialize_extraction_state()
+        st.rerun()
     st.markdown(
         '<p class="quiet-note">Review every extracted field before continuing to order matching.</p>',
         unsafe_allow_html=True,
@@ -2637,34 +2886,76 @@ def render_confirmation_step() -> None:
         "Confirm registration",
         "One final review before this record moves to the inventory workflow.",
     )
-    summary_values = [
+    identity_values = [
         ("Chemical", payload["chemical_name"]),
         ("CAS number", payload["cas_number"]),
         ("Batch", payload["batch_number"]),
         ("Manufacturer", payload["manufacturer"]),
         ("Quantity", f'{payload["quantity"]:g} {payload["unit"]}'),
         ("Pending order", payload["pending_order"] or "Selection required"),
-        (
-            "Chemical functions",
-            " · ".join(payload["chemical_labels"]) or "Review required",
-        ),
-        (
-            "Storage constraints",
-            " · ".join(payload["storage_constraints"]) or "Review required",
-        ),
-        ("Storage", payload["storage_location"]),
-        ("Storage rule", payload["storage_rule"]),
     ]
-    summary = "".join(
+    identity_summary = "".join(
         f"""
         <div class="summary-item">
             <div class="summary-label">{escaped(label)}</div>
             <div class="summary-value">{escaped(value)}</div>
         </div>
         """
-        for label, value in summary_values
+        for label, value in identity_values
     )
-    st.markdown(f'<div class="summary-grid">{summary}</div>', unsafe_allow_html=True)
+    chemical_labels = payload["chemical_labels"] or ["Review required"]
+    chemical_chips = "".join(
+        f'<span class="summary-chip">{escaped(label)}</span>'
+        for label in chemical_labels
+    )
+    storage_constraints = payload["storage_constraints"] or ["Review required"]
+    constraint_chips = "".join(
+        f'<span class="summary-chip constraint">{escaped(label)}</span>'
+        for label in storage_constraints
+    )
+    storage_rule = payload["storage_rule"] or "No storage rule recorded."
+    if " · " in storage_rule:
+        storage_rule_code, storage_rule_copy = storage_rule.split(" · ", 1)
+    else:
+        storage_rule_code, storage_rule_copy = "Rule", storage_rule
+    st.markdown(
+        f"""
+        <div class="review-summary">
+            <section class="review-summary-group" aria-label="Record details">
+                <div class="review-summary-heading">Record details</div>
+                <div class="review-identity-grid">{identity_summary}</div>
+            </section>
+            <section class="review-summary-group" aria-label="Chemistry and safety">
+                <div class="review-summary-heading">Chemistry &amp; safety</div>
+                <div class="review-summary-stack">
+                    <div class="summary-item">
+                        <div class="summary-label">Chemical functions</div>
+                        <div class="summary-chip-row">{chemical_chips}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-label">Storage constraints</div>
+                        <div class="summary-chip-row">{constraint_chips}</div>
+                    </div>
+                </div>
+            </section>
+            <section class="review-summary-group" aria-label="Storage decision">
+                <div class="review-summary-heading">Storage decision</div>
+                <div class="storage-location-card">
+                    <div class="summary-label">Final location</div>
+                    <div class="summary-value">{escaped(payload["storage_location"])}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">Applied rule</div>
+                    <div class="storage-rule">
+                        <span class="storage-rule-code">{escaped(storage_rule_code)}</span>
+                        <span class="storage-rule-copy">{escaped(storage_rule_copy)}</span>
+                    </div>
+                </div>
+            </section>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     reviewed = st.checkbox(
         "I reviewed the extracted information.",
         key="add_reviewed",
@@ -2755,26 +3046,32 @@ def render_registration_workspace() -> None:
 
 
 def render_add_tab() -> None:
+    preserve_add_workflow_state()
+    upload_key = f"label_upload_{st.session_state.get('add_upload_nonce', 0)}"
+    has_upload = st.session_state.get(upload_key) is not None
+    if not has_upload and st.session_state.get("add_file_signature"):
+        clear_state_keys(st.session_state)
+
     render_section_header(
         "Reagent intake",
         "Register with confidence",
         "Move from a label photo to a reviewed storage decision without losing the evidence.",
     )
     render_stepper()
-    upload_key = f"label_upload_{st.session_state.get('add_upload_nonce', 0)}"
-    has_upload = st.session_state.get(upload_key) is not None
 
     if not has_upload:
         with st.container(key="intake_start"):
             with st.container(border=True, key="upload_panel"):
-                render_upload_step()
+                render_upload_step(compact=False)
         return
 
     with st.container(key="intake_workspace"):
         left, right = st.columns([0.72, 1.28], gap="medium")
         with left:
             with st.container(border=True, key="upload_panel"):
-                uploaded_contents = render_upload_step()
+                uploaded_contents = render_upload_step(
+                    compact=bool(st.session_state.get("add_extraction_complete"))
+                )
         with right:
             if uploaded_contents is None:
                 return
