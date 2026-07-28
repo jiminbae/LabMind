@@ -20,6 +20,10 @@ ADD_STATE_KEYS = {
     "add_selected_order",
     "add_register_without_order",
     "add_storage_location",
+    "add_classification_cas",
+    "add_chemical_labels",
+    "add_storage_constraints",
+    "add_classification_confidence",
     "add_reviewed",
     "add_field_chemical_name",
     "add_field_cas_number",
@@ -42,6 +46,84 @@ STORAGE_OPTIONS = [
     "Freezer Storage",
     "Manual Review Required",
 ]
+
+CHEMICAL_LABEL_OPTIONS = [
+    "Brønsted acid",
+    "Chiral ligand",
+    "Flammable liquid",
+    "Inorganic compound",
+    "Lewis acid",
+    "Moisture reactive",
+    "Organic compound",
+    "Organometallic",
+    "Organophosphorus compound",
+    "Phosphine ligand",
+    "Protic solvent",
+    "Pyrophoric",
+    "Reducing agent",
+]
+
+STORAGE_CONSTRAINT_OPTIONS = [
+    "Ambient temperature",
+    "Corrosive",
+    "Flammable",
+    "Keep away from acids",
+    "Keep away from oxidizers",
+    "Locked storage",
+    "Refrigerated",
+    "Segregate from bases",
+    "Water reactive",
+]
+
+CHEMICAL_CLASSIFICATION_PROFILES = {
+    "64-17-5": {
+        "labels": ["Flammable liquid", "Protic solvent", "Organic compound"],
+        "constraints": [
+            "Flammable",
+            "Keep away from oxidizers",
+            "Ambient temperature",
+        ],
+        "confidence": 0.97,
+        "rationale": "A volatile protic solvent with a low flash point.",
+    },
+    "7550-45-0": {
+        "labels": ["Lewis acid", "Inorganic compound", "Moisture reactive"],
+        "constraints": ["Corrosive", "Water reactive", "Segregate from bases"],
+        "confidence": 0.94,
+        "rationale": "A strong Lewis acid that reacts vigorously with moisture.",
+    },
+    "109-72-8": {
+        "labels": ["Organometallic", "Pyrophoric", "Reducing agent"],
+        "constraints": [
+            "Flammable",
+            "Water reactive",
+            "Keep away from acids",
+            "Locked storage",
+        ],
+        "confidence": 0.96,
+        "rationale": "An organolithium reagent requiring inert, tightly controlled storage.",
+    },
+    "76189-55-4": {
+        "labels": [
+            "Chiral ligand",
+            "Phosphine ligand",
+            "Organophosphorus compound",
+        ],
+        "constraints": ["Ambient temperature", "Keep away from oxidizers"],
+        "confidence": 0.93,
+        "rationale": "A privileged chiral bisphosphine ligand used in asymmetric catalysis.",
+    },
+    "210169-54-3": {
+        "labels": [
+            "Chiral ligand",
+            "Phosphine ligand",
+            "Organophosphorus compound",
+        ],
+        "constraints": ["Ambient temperature", "Keep away from oxidizers"],
+        "confidence": 0.91,
+        "rationale": "A chiral bisphosphine ligand commonly used for asymmetric transformations.",
+    },
+}
 
 
 def apply_theme() -> None:
