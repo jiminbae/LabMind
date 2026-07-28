@@ -11,10 +11,14 @@ from app_v5 import (
     can_confirm_registration,
     clear_state_keys,
     confirm_sample_registration,
+    determine_storage_location,
     filter_sample_inventory,
+    get_chemical_classification,
     load_sample_inventory,
     reset_add_workflow,
+    synchronize_classification_state,
     uploaded_file_signature,
+    validate_cas_number,
 )
 
 
@@ -66,6 +70,58 @@ class AppV5HelpersTest(unittest.TestCase):
             confirm_sample_registration({}, reviewed=False)
         result = confirm_sample_registration({"name": "Ethanol"}, reviewed=True)
         self.assertEqual(result["payload"]["name"], "Ethanol")
+
+    def test_cas_check_digit_validation(self) -> None:
+        self.assertTrue(validate_cas_number("64-17-5"))
+        self.assertTrue(validate_cas_number("7732-18-5"))
+        self.assertFalse(validate_cas_number("64-17-6"))
+        self.assertFalse(validate_cas_number("not-a-cas"))
+
+    def test_classification_cache_returns_multi_label_copy(self) -> None:
+        first = get_chemical_classification("7550-45-0")
+        second = get_chemical_classification("7550-45-0")
+        self.assertIn("Lewis acid", first["labels"])
+        self.assertIn("Moisture reactive", first["labels"])
+        first["labels"].append("Changed")
+        self.assertNotIn("Changed", second["labels"])
+        unknown = get_chemical_classification("123-45-6")
+        self.assertEqual(unknown["labels"], [])
+        self.assertEqual(unknown["cache_status"], "Review required")
+
+    def test_storage_rules_fail_closed(self) -> None:
+        self.assertEqual(
+            determine_storage_location(["Flammable"])["location"],
+            "Flammable Cabinet B",
+        )
+        self.assertEqual(
+            determine_storage_location(["Corrosive"])["location"],
+            "Corrosives Cabinet",
+        )
+        self.assertEqual(
+            determine_storage_location(["Refrigerated"])["location"],
+            "Refrigerated Storage",
+        )
+        for constraints in (
+            [],
+            ["Water reactive"],
+            ["Locked storage"],
+            ["Corrosive", "Flammable"],
+            ["Unsupported constraint"],
+        ):
+            self.assertEqual(
+                determine_storage_location(list(constraints))["location"],
+                "Manual Review Required",
+            )
+
+    def test_classification_state_refreshes_when_cas_changes(self) -> None:
+        state = {"add_field_cas_number": "64-17-5"}
+        synchronize_classification_state(state)
+        self.assertIn("Flammable liquid", state["add_chemical_labels"])
+        self.assertEqual(state["add_storage_location"], "Flammable Cabinet B")
+        state["add_field_cas_number"] = "109-72-8"
+        synchronize_classification_state(state)
+        self.assertIn("Organometallic", state["add_chemical_labels"])
+        self.assertEqual(state["add_storage_location"], "Manual Review Required")
 
     def test_no_backend_module_is_imported(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")

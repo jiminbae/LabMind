@@ -24,6 +24,11 @@ ADD_STATE_KEYS = {
     "add_chemical_labels",
     "add_storage_constraints",
     "add_classification_confidence",
+    "add_classification_source",
+    "add_classification_rationale",
+    "add_storage_rule",
+    "add_storage_decision_signature",
+    "add_manual_storage_reviewed",
     "add_reviewed",
     "add_field_chemical_name",
     "add_field_cas_number",
@@ -693,6 +698,70 @@ def apply_theme() -> None:
             padding: 6px 10px;
         }
 
+        .safety-card {
+            background: linear-gradient(145deg, rgba(0, 102, 204, 0.07), rgba(255, 255, 255, 0.92));
+            border: 1px solid rgba(0, 102, 204, 0.16);
+            border-radius: 18px;
+            margin: 4px 0 18px;
+            padding: 18px;
+        }
+
+        .safety-kicker, .decision-route, .query-route {
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .safety-title {
+            color: var(--ink);
+            font-size: 18px;
+            font-weight: 660;
+            letter-spacing: -0.02em;
+            margin: 4px 0 5px;
+        }
+
+        .decision-card {
+            background: #f5f5f7;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            margin: 10px 0 14px;
+            padding: 18px;
+        }
+
+        .decision-location {
+            color: var(--ink);
+            font-size: 22px;
+            font-weight: 680;
+            letter-spacing: -0.03em;
+            margin: 5px 0;
+        }
+
+        .query-trace {
+            display: grid;
+            gap: 10px;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin: 12px 0 16px;
+        }
+
+        .trace-step {
+            background: #f5f5f7;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            color: var(--secondary);
+            font-size: 12px;
+            line-height: 1.4;
+            padding: 12px;
+        }
+
+        .trace-step strong {
+            color: var(--ink);
+            display: block;
+            font-size: 13px;
+            margin-bottom: 3px;
+        }
+
         .order-card {
             background: rgba(245, 245, 247, 0.72);
             border: 1px solid var(--line);
@@ -818,6 +887,10 @@ def apply_theme() -> None:
                 grid-template-columns: 1fr;
             }
 
+            .query-trace {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
             .summary-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr));
             }
@@ -825,6 +898,10 @@ def apply_theme() -> None:
 
         @media (max-width: 460px) {
             .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .query-trace {
                 grid-template-columns: 1fr;
             }
         }
@@ -903,12 +980,79 @@ def get_sample_order_matches(scenario: str) -> list[dict[str, Any]]:
     return []
 
 
-def get_sample_storage_recommendation() -> dict[str, Any]:
-    """Temporary UI data. TODO: replace with rule_engine output."""
+def get_chemical_classification(cas_number: str | None) -> dict[str, Any]:
+    """Return a CAS-level chemistry profile from the local classification cache."""
+    normalized = (cas_number or "").strip()
+    profile = CHEMICAL_CLASSIFICATION_PROFILES.get(normalized)
+    if profile:
+        return {
+            **profile,
+            "labels": list(profile["labels"]),
+            "constraints": list(profile["constraints"]),
+            "cas_number": normalized,
+            "cache_status": "CAS classification cache",
+        }
     return {
-        "tags": ["Flammable", "Organic solvent"],
-        "recommended_location": "Flammable Cabinet B",
-        "reason": "Flammable organic solvent requiring dedicated cabinet storage.",
+        "cas_number": normalized,
+        "labels": [],
+        "constraints": [],
+        "confidence": 0.0,
+        "rationale": "No cached profile is available. A chemistry review is required.",
+        "cache_status": "Review required",
+    }
+
+
+def determine_storage_location(constraints: list[str]) -> dict[str, str]:
+    """Apply hard storage rules; model classifications never select a cabinet."""
+    constraint_set = set(constraints)
+    supported = set(STORAGE_CONSTRAINT_OPTIONS)
+    conflicting = (
+        {"Refrigerated", "Flammable"} <= constraint_set
+        or {"Corrosive", "Flammable"} <= constraint_set
+    )
+    if (
+        not constraint_set
+        or not constraint_set <= supported
+        or conflicting
+        or "Water reactive" in constraint_set
+        or "Locked storage" in constraint_set
+    ):
+        return {
+            "location": "Manual Review Required",
+            "rule": "SR-01 · Unknown, conflicting, reactive, or restricted constraints require safety review.",
+        }
+    if "Refrigerated" in constraint_set:
+        return {
+            "location": "Refrigerated Storage",
+            "rule": "SR-02 · Refrigerated materials remain in temperature-controlled storage.",
+        }
+    if "Corrosive" in constraint_set:
+        return {
+            "location": "Corrosives Cabinet",
+            "rule": "SR-03 · Corrosives are segregated from general and flammable stock.",
+        }
+    if "Flammable" in constraint_set:
+        return {
+            "location": "Flammable Cabinet B",
+            "rule": "SR-04 · Flammable liquids are assigned to an approved cabinet.",
+        }
+    return {
+        "location": "General Shelf A",
+        "rule": "SR-05 · Ambient material with no special segregation rule.",
+    }
+
+
+def get_sample_storage_recommendation(
+    cas_number: str | None = "64-17-5",
+) -> dict[str, Any]:
+    classification = get_chemical_classification(cas_number)
+    decision = determine_storage_location(classification["constraints"])
+    return {
+        "tags": classification["labels"],
+        "constraints": classification["constraints"],
+        "recommended_location": decision["location"],
+        "reason": decision["rule"],
+        "classification": classification,
     }
 
 
@@ -943,15 +1087,33 @@ def can_confirm_registration(reviewed: bool, extraction_complete: bool) -> bool:
     return bool(reviewed and extraction_complete)
 
 
+def validate_cas_number(cas_number: str | None) -> bool:
+    """Validate CAS format and its built-in check digit locally."""
+    value = (cas_number or "").strip()
+    parts = value.split("-")
+    if (
+        len(parts) != 3
+        or not all(part.isdigit() for part in parts)
+        or not 2 <= len(parts[0]) <= 7
+        or len(parts[1]) != 2
+        or len(parts[2]) != 1
+    ):
+        return False
+    body = f"{parts[0]}{parts[1]}"
+    checksum = sum(
+        int(digit) * multiplier
+        for multiplier, digit in enumerate(reversed(body), start=1)
+    )
+    return checksum % 10 == int(parts[2])
+
+
 def cas_display_state(cas_number: str | None) -> tuple[str, str]:
-    """Display-only format state. TODO: replace with cas_validator."""
     value = (cas_number or "").strip()
     if not value:
-        return "CAS not provided", "warning"
-    parts = value.split("-")
-    if len(parts) == 3 and all(part.isdigit() for part in parts):
-        return "CAS format check: Valid", "positive"
-    return "CAS format check: Needs review", "warning"
+        return "CAS number required", "warning"
+    if validate_cas_number(value):
+        return "CAS check digit verified", "positive"
+    return "CAS check digit failed · recapture or enter manually", "warning"
 
 
 def load_sample_inventory(today: date | None = None) -> pd.DataFrame:
@@ -968,6 +1130,10 @@ def load_sample_inventory(today: date | None = None) -> pd.DataFrame:
         ("LAB-008", "Dimethyl sulfoxide", "67-68-5", "Sigma-Aldrich", "MKCL3021", "Molecular biology", 5, "100 mL", today + timedelta(days=365), "General Shelf B"),
         ("LAB-009", "Trypsin-EDTA", "—", "Gibco", "T2026-14", "0.25%", 7, "100 mL", today + timedelta(days=12), "Freezer Storage"),
         ("LAB-010", "Tris base", "77-86-1", "Bio-Rad", "TRS-7730", "Molecular biology", 31, "1 kg", today + timedelta(days=700), "General Shelf A"),
+        ("LAB-011", "Titanium tetrachloride", "7550-45-0", "Sigma-Aldrich", "TI-4421", "99.9%", 2, "100 mL", today + timedelta(days=410), "Corrosives Cabinet"),
+        ("LAB-012", "n-Butyllithium", "109-72-8", "Acros Organics", "BL-9031", "2.5 M in hexanes", 1, "100 mL", today + timedelta(days=82), "Manual Review Required"),
+        ("LAB-013", "(R)-BINAP", "76189-55-4", "Strem Chemicals", "BN-1184", "98%", 3, "5 g", today + timedelta(days=620), "General Shelf B"),
+        ("LAB-014", "(S)-SEGPHOS", "210169-54-3", "TCI America", "SG-2407", "98%", 2, "1 g", today + timedelta(days=480), "General Shelf B"),
     ]
     frame = pd.DataFrame(
         records,
@@ -983,6 +1149,73 @@ def load_sample_inventory(today: date | None = None) -> pd.DataFrame:
             "Expiry date",
             "Storage location",
         ],
+    )
+    chemistry_metadata = {
+        "64-17-5": (
+            "CCO",
+            "Flammable liquid · Protic solvent · Organic compound",
+            "Flammable · Keep away from oxidizers",
+        ),
+        "67-56-1": (
+            "CO",
+            "Flammable liquid · Protic solvent · Organic compound",
+            "Flammable · Toxic",
+        ),
+        "75-05-8": (
+            "CC#N",
+            "Flammable liquid · Polar aprotic solvent",
+            "Flammable · Toxic",
+        ),
+        "7647-01-0": (
+            "Cl",
+            "Brønsted acid · Inorganic compound",
+            "Corrosive · Segregate from bases",
+        ),
+        "7647-14-5": ("[Na+].[Cl-]", "Inorganic salt", "Ambient temperature"),
+        "64-19-7": (
+            "CC(=O)O",
+            "Brønsted acid · Organic compound",
+            "Corrosive · Flammable",
+        ),
+        "67-68-5": (
+            "CS(C)=O",
+            "Polar aprotic solvent · Organic compound",
+            "Ambient temperature",
+        ),
+        "77-86-1": (
+            "NC(CO)(CO)CO",
+            "Buffering base · Organic compound",
+            "Ambient temperature",
+        ),
+        "7550-45-0": (
+            "Cl[Ti](Cl)(Cl)Cl",
+            "Lewis acid · Inorganic compound · Moisture reactive",
+            "Corrosive · Water reactive · Segregate from bases",
+        ),
+        "109-72-8": (
+            "[Li]CCCC",
+            "Organometallic · Pyrophoric · Reducing agent",
+            "Flammable · Water reactive · Locked storage",
+        ),
+        "76189-55-4": (
+            "P(c1ccccc1)(c1ccccc1)c1ccc2ccccc2c1-c1c(P(c2ccccc2)c2ccccc2)ccc2ccccc12",
+            "Chiral ligand · Phosphine ligand · Organophosphorus compound",
+            "Ambient temperature · Keep away from oxidizers",
+        ),
+        "210169-54-3": (
+            "COc1ccc2c(c1OC)-c1c(P(c3ccccc3)c3ccccc3)ccc3ccccc13",
+            "Chiral ligand · Phosphine ligand · Organophosphorus compound",
+            "Ambient temperature · Keep away from oxidizers",
+        ),
+    }
+    frame["SMILES"] = frame["CAS number"].map(
+        lambda cas: chemistry_metadata.get(cas, ("Not available", "", ""))[0]
+    )
+    frame["Chemical labels"] = frame["CAS number"].map(
+        lambda cas: chemistry_metadata.get(cas, ("", "Unclassified", ""))[1]
+    )
+    frame["Storage constraints"] = frame["CAS number"].map(
+        lambda cas: chemistry_metadata.get(cas, ("", "", "Manual review"))[2]
     )
     frame["Expiry state"] = frame["Expiry date"].apply(
         lambda value: (
@@ -1163,7 +1396,7 @@ def initialize_extraction_state() -> None:
     st.session_state["add_confirmation"] = None
     st.session_state["add_stage"] = "Details"
     st.session_state.setdefault("add_order_scenario", "Unique match")
-    st.session_state.setdefault("add_storage_location", "Flammable Cabinet B")
+    synchronize_classification_state()
 
 
 def render_upload_step() -> bytes | None:
@@ -1359,36 +1592,121 @@ def render_order_match_step() -> None:
         )
 
 
+def synchronize_classification_state(
+    state: MutableMapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    target = st.session_state if state is None else state
+    cas_number = str(target.get("add_field_cas_number", "")).strip()
+    if target.get("add_classification_cas") != cas_number:
+        profile = get_chemical_classification(cas_number)
+        decision = determine_storage_location(profile["constraints"])
+        target["add_classification_cas"] = cas_number
+        target["add_chemical_labels"] = list(profile["labels"])
+        target["add_storage_constraints"] = list(profile["constraints"])
+        target["add_classification_confidence"] = profile["confidence"]
+        target["add_classification_source"] = profile["cache_status"]
+        target["add_classification_rationale"] = profile["rationale"]
+        target["add_storage_rule"] = decision["rule"]
+        target["add_storage_location"] = decision["location"]
+        target["add_storage_decision_signature"] = tuple(
+            sorted(profile["constraints"])
+        )
+        target.pop("add_manual_storage_reviewed", None)
+    return get_chemical_classification(cas_number)
+
+
 def render_storage_step() -> None:
     if not st.session_state.get("add_extraction_complete"):
         return
-    recommendation = get_sample_storage_recommendation()
+    classification = synchronize_classification_state()
     render_section_header(
         "Step 4",
-        "Assign storage",
-        "Review the suggested location and choose the final destination.",
+        "Classify chemistry & assign storage",
+        "Review the chemistry profile first. Hard safety rules determine the location.",
     )
-    tags = "".join(
-        f'<span class="tag">{escaped(tag)}</span>' for tag in recommendation["tags"]
-    )
-    st.markdown(f'<div class="tag-row">{tags}</div>', unsafe_allow_html=True)
     st.markdown(
         f"""
-        <div class="order-card selected">
-            <div class="order-id">Recommended location</div>
-            <div class="order-name">{escaped(recommendation["recommended_location"])}</div>
-            <div class="order-detail">{escaped(recommendation["reason"])}</div>
+        <div class="safety-card">
+            <div class="safety-kicker">Safety boundary</div>
+            <div class="safety-title">AI describes chemistry. Rules assign storage.</div>
+            <div class="order-detail">
+                The chemistry layer may return multiple labels and constraints, but it
+                cannot choose a cabinet or override segregation policy.
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.selectbox(
-        "Storage location",
+
+    chemistry_col, constraint_col = st.columns(2, gap="large")
+    with chemistry_col:
+        st.markdown("##### Chemical function labels")
+        labels = st.multiselect(
+            "Chemical function labels",
+            CHEMICAL_LABEL_OPTIONS,
+            key="add_chemical_labels",
+            label_visibility="collapsed",
+        )
+        st.caption(
+            f'{classification["cache_status"]} · '
+            f'{st.session_state.get("add_classification_confidence", 0):.0%} confidence'
+        )
+    with constraint_col:
+        st.markdown("##### Storage constraints")
+        constraints = st.multiselect(
+            "Storage constraints",
+            STORAGE_CONSTRAINT_OPTIONS,
+            key="add_storage_constraints",
+            label_visibility="collapsed",
+        )
+        st.caption("Constraints are reviewed before the rule engine runs.")
+
+    tags = "".join(
+        f'<span class="tag">{escaped(tag)}</span>' for tag in labels
+    )
+    if tags:
+        st.markdown(f'<div class="tag-row">{tags}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<p class="quiet-note">{escaped(st.session_state.get("add_classification_rationale", ""))}</p>',
+        unsafe_allow_html=True,
+    )
+
+    decision = determine_storage_location(list(constraints))
+    signature = tuple(sorted(constraints))
+    if st.session_state.get("add_storage_decision_signature") != signature:
+        st.session_state["add_storage_location"] = decision["location"]
+        st.session_state["add_storage_decision_signature"] = signature
+        st.session_state.pop("add_manual_storage_reviewed", None)
+    st.session_state["add_storage_rule"] = decision["rule"]
+
+    st.markdown(
+        f"""
+        <div class="decision-card">
+            <div class="decision-route">Deterministic rule engine</div>
+            <div class="decision-location">{escaped(decision["location"])}</div>
+            <div class="order-detail">{escaped(decision["rule"])}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    selected_location = st.selectbox(
+        "Final storage location",
         STORAGE_OPTIONS,
         key="add_storage_location",
     )
+    review_required = (
+        decision["location"] == "Manual Review Required"
+        or selected_location != decision["location"]
+    )
+    if review_required:
+        st.checkbox(
+            "A laboratory safety reviewer approved this storage decision.",
+            key="add_manual_storage_reviewed",
+        )
+    else:
+        st.session_state["add_manual_storage_reviewed"] = True
     st.markdown(
-        '<p class="quiet-note">Confirm the final location against your laboratory safety policy.</p>',
+        '<p class="quiet-note">The selected location is recorded with the triggered rule and reviewer state.</p>',
         unsafe_allow_html=True,
     )
 
@@ -1409,7 +1727,24 @@ def current_registration_payload() -> dict[str, Any]:
         "unit": st.session_state.get("add_field_unit", ""),
         "confidence": st.session_state.get("add_field_confidence", 0) / 100,
         "pending_order": selected_order,
+        "chemical_labels": list(st.session_state.get("add_chemical_labels", [])),
+        "storage_constraints": list(
+            st.session_state.get("add_storage_constraints", [])
+        ),
+        "classification_confidence": st.session_state.get(
+            "add_classification_confidence", 0
+        ),
+        "classification_source": st.session_state.get(
+            "add_classification_source", ""
+        ),
+        "classification_rationale": st.session_state.get(
+            "add_classification_rationale", ""
+        ),
         "storage_location": st.session_state.get("add_storage_location", ""),
+        "storage_rule": st.session_state.get("add_storage_rule", ""),
+        "storage_reviewed": bool(
+            st.session_state.get("add_manual_storage_reviewed")
+        ),
     }
 
 
@@ -1491,7 +1826,16 @@ def render_confirmation_step() -> None:
         ("Manufacturer", payload["manufacturer"]),
         ("Quantity", f'{payload["quantity"]:g} {payload["unit"]}'),
         ("Pending order", payload["pending_order"] or "Selection required"),
+        (
+            "Chemical functions",
+            " · ".join(payload["chemical_labels"]) or "Review required",
+        ),
+        (
+            "Storage constraints",
+            " · ".join(payload["storage_constraints"]) or "Review required",
+        ),
         ("Storage", payload["storage_location"]),
+        ("Storage rule", payload["storage_rule"]),
     ]
     summary = "".join(
         f"""
@@ -1517,6 +1861,8 @@ def render_confirmation_step() -> None:
         )
         and order_ready
         and payload["storage_location"]
+        and payload["storage_reviewed"]
+        and validate_cas_number(payload["cas_number"])
     )
     if st.button(
         "Confirm registration",
@@ -1589,6 +1935,9 @@ def render_registration_workspace() -> None:
             previous_stage="Order",
             next_stage="Review",
             next_label="Review registration",
+            next_disabled=not bool(
+                st.session_state.get("add_manual_storage_reviewed")
+            ),
         )
         return
     render_confirmation_step()
