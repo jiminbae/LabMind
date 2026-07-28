@@ -1,4 +1,4 @@
-"""Validated database operations for the current LabMind intake workflow."""
+"""Validated SQLite operations for the LabMind intake workflow."""
 
 from __future__ import annotations
 
@@ -32,6 +32,17 @@ REAGENT_COLUMNS = (
     "storage_suggestion",
     "storage_reason",
     "manual_review",
+    "receipt_key",
+    "intake_id",
+    "order_reference",
+    "match_score",
+    "image_signature",
+    "extraction_confidence",
+    "extraction_source",
+    "extraction_rationale",
+    "classification_confidence",
+    "classification_source",
+    "classification_rationale",
 )
 
 JSON_LIST_COLUMNS = ("chemical_tags", "hazard_labels")
@@ -39,6 +50,10 @@ JSON_LIST_COLUMNS = ("chemical_tags", "hazard_labels")
 
 class ReagentValidationError(ValueError):
     """Raised when a reagent cannot safely be written to or queried from storage."""
+
+
+class IntakeConflictError(ReagentValidationError):
+    """Raised when one receipt identity is reused for different reagent data."""
 
 
 def _required_text(value: object, field_name: str) -> str:
@@ -56,6 +71,19 @@ def _optional_text(value: object, field_name: str) -> str | None:
     return normalized or None
 
 
+def _optional_alias(
+    data: Mapping[str, Any],
+    primary_name: str,
+    alias_name: str,
+) -> object:
+    """Use a legacy/UI alias only when the canonical key is empty."""
+
+    value = data.get(primary_name)
+    if value is None or value == "":
+        return data.get(alias_name)
+    return value
+
+
 def _quantity(value: object) -> float:
     if value is None:
         return 0.0
@@ -71,6 +99,23 @@ def _quantity(value: object) -> float:
 
     if not math.isfinite(normalized) or normalized < 0:
         raise ReagentValidationError("quantity must be a non-negative number.")
+    return normalized
+
+
+def _confidence(value: object, field_name: str) -> float | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        raise ReagentValidationError(f"{field_name} must be a number from 0 to 1.")
+    try:
+        normalized = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ReagentValidationError(
+            f"{field_name} must be a number from 0 to 1."
+        ) from exc
+
+    if not math.isfinite(normalized) or not 0 <= normalized <= 1:
+        raise ReagentValidationError(f"{field_name} must be a number from 0 to 1.")
     return normalized
 
 
@@ -140,6 +185,17 @@ def _normalize_reagent(data: Mapping[str, Any]) -> dict[str, Any]:
         raise ReagentValidationError(message)
 
     quantity_unit = _optional_text(data.get("quantity_unit"), "quantity_unit")
+    receipt_key = _optional_text(data.get("receipt_key"), "receipt_key")
+    intake_id = _optional_text(data.get("intake_id"), "intake_id")
+    # An upstream intake identifier is itself a valid idempotency key.  Keep
+    # its original value too so operators can trace it back to the source.
+    if receipt_key is None and intake_id is not None:
+        receipt_key = f"intake:{intake_id}"
+
+    extraction_confidence = _confidence(
+        _optional_alias(data, "extraction_confidence", "confidence"),
+        "extraction_confidence",
+    )
 
     normalized: dict[str, Any] = {
         "name": name,
@@ -172,6 +228,33 @@ def _normalize_reagent(data: Mapping[str, Any]) -> dict[str, Any]:
             data.get("storage_reason"), "storage_reason"
         ),
         "manual_review": _manual_review(data.get("manual_review")),
+        "receipt_key": receipt_key,
+        "intake_id": intake_id,
+        "order_reference": _optional_text(
+            _optional_alias(data, "order_reference", "pending_order"),
+            "order_reference",
+        ),
+        "match_score": _confidence(data.get("match_score"), "match_score"),
+        "image_signature": _optional_text(
+            data.get("image_signature"), "image_signature"
+        ),
+        "extraction_confidence": extraction_confidence,
+        "extraction_source": _optional_text(
+            data.get("extraction_source"), "extraction_source"
+        ),
+        "extraction_rationale": _optional_text(
+            data.get("extraction_rationale"), "extraction_rationale"
+        ),
+        "classification_confidence": _confidence(
+            data.get("classification_confidence"),
+            "classification_confidence",
+        ),
+        "classification_source": _optional_text(
+            data.get("classification_source"), "classification_source"
+        ),
+        "classification_rationale": _optional_text(
+            data.get("classification_rationale"), "classification_rationale"
+        ),
     }
     return normalized
 
@@ -192,13 +275,66 @@ def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return result
 
 
+def _identity_rows(
+    connection: sqlite3.Connection,
+    normalized: Mapping[str, Any],
+) -> list[sqlite3.Row]:
+    clauses: list[str] = []
+    parameters: list[Any] = []
+    if normalized["receipt_key"] is not None:
+        clauses.append("receipt_key = ?")
+        parameters.append(normalized["receipt_key"])
+    if normalized["intake_id"] is not None:
+        clauses.append("intake_id = ?")
+        parameters.append(normalized["intake_id"])
+    if not clauses:
+        return []
+    return connection.execute(
+        "SELECT * FROM reagents WHERE " + " OR ".join(clauses),
+        parameters,
+    ).fetchall()
+
+
+def _stored_payload_matches(
+    row: sqlite3.Row,
+    normalized: Mapping[str, Any],
+) -> bool:
+    return all(row[column] == normalized[column] for column in REAGENT_COLUMNS)
+
+
+def _return_existing_or_raise(
+    rows: Sequence[sqlite3.Row],
+    normalized: Mapping[str, Any],
+) -> int | None:
+    if not rows:
+        return None
+    if len(rows) != 1:
+        raise IntakeConflictError(
+            "receipt_key and intake_id resolve to different stored reagents."
+        )
+    stored = rows[0]
+    if _stored_payload_matches(stored, normalized):
+        return int(stored["id"])
+    raise IntakeConflictError(
+        "A reagent already exists for this receipt_key or intake_id, but its "
+        "stored details differ. Review the original intake instead of creating "
+        "a duplicate."
+    )
+
+
 def insert_reagent(
     data: Mapping[str, Any],
     db_path: str | Path | None = None,
     *,
     confirmed: bool = False,
 ) -> int:
-    """Validate and insert one human-confirmed physical reagent lot."""
+    """Validate and insert one human-confirmed physical reagent lot.
+
+    Legacy callers may omit an intake identity and receive the historical
+    append-only behavior.  New callers should send ``receipt_key`` or
+    ``intake_id``; replaying the exact same confirmed intake then returns the
+    original record ID without creating another physical lot.
+    """
 
     if confirmed is not True:
         raise ReagentValidationError(
@@ -213,13 +349,44 @@ def insert_reagent(
     columns = ", ".join(REAGENT_COLUMNS)
     values = tuple(normalized[column] for column in REAGENT_COLUMNS)
 
-    with closing(sqlite3.connect(resolved_db_path)) as connection:
-        with connection:
+    with closing(sqlite3.connect(resolved_db_path, timeout=10)) as connection:
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA busy_timeout = 5000")
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            existing_id = _return_existing_or_raise(
+                _identity_rows(connection, normalized), normalized
+            )
+            if existing_id is not None:
+                connection.commit()
+                return existing_id
+
             cursor = connection.execute(
                 f"INSERT INTO reagents ({columns}) VALUES ({placeholders})",
                 values,
             )
             reagent_id = cursor.lastrowid
+        except sqlite3.IntegrityError as exc:
+            connection.rollback()
+            # A concurrent writer may have committed the same receipt after our
+            # initial lookup.  Re-check it once so idempotent retries stay safe.
+            if normalized["receipt_key"] is not None or normalized["intake_id"] is not None:
+                with closing(sqlite3.connect(resolved_db_path, timeout=10)) as retry:
+                    retry.row_factory = sqlite3.Row
+                    existing_id = _return_existing_or_raise(
+                        _identity_rows(retry, normalized), normalized
+                    )
+                    if existing_id is not None:
+                        return existing_id
+            raise ReagentValidationError(
+                "Reagent could not be inserted because a database constraint failed."
+            ) from exc
+        except Exception:
+            connection.rollback()
+            raise
+        else:
+            connection.commit()
 
     if reagent_id is None:
         raise RuntimeError("Database did not return the inserted reagent ID.")

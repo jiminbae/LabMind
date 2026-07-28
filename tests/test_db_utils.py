@@ -8,6 +8,7 @@ from pathlib import Path
 
 from backend.db_init import PROJECT_ROOT
 from backend.db_utils import (
+    IntakeConflictError,
     ReagentValidationError,
     insert_reagent,
     list_reagents,
@@ -175,6 +176,61 @@ class DatabaseUtilityTests(unittest.TestCase):
 
         self.assertEqual([row["id"] for row in rows], [second_id, first_id])
         self.assertEqual([row["name"] for row in rows], ["Acetone", "Water"])
+
+    def test_receipt_key_makes_exact_retries_idempotent(self) -> None:
+        reagent = {**self.base_reagent, "receipt_key": "camera:abc123"}
+
+        first_id = insert_reagent(reagent, self.database_path, confirmed=True)
+        second_id = insert_reagent(reagent, self.database_path, confirmed=True)
+
+        self.assertEqual(second_id, first_id)
+        self.assertEqual(len(list_reagents(self.database_path)), 1)
+
+    def test_receipt_key_rejects_changed_replay(self) -> None:
+        reagent = {**self.base_reagent, "receipt_key": "camera:abc123"}
+        insert_reagent(reagent, self.database_path, confirmed=True)
+
+        with self.assertRaises(IntakeConflictError):
+            insert_reagent(
+                {**reagent, "quantity": 3.0},
+                self.database_path,
+                confirmed=True,
+            )
+
+    def test_intake_id_becomes_an_idempotency_key(self) -> None:
+        reagent = {**self.base_reagent, "intake_id": "RECEIPT-2026-001"}
+
+        first_id = insert_reagent(reagent, self.database_path, confirmed=True)
+        second_id = insert_reagent(reagent, self.database_path, confirmed=True)
+        stored = list_reagents(self.database_path)[0]
+
+        self.assertEqual(second_id, first_id)
+        self.assertEqual(stored["intake_id"], "RECEIPT-2026-001")
+        self.assertEqual(stored["receipt_key"], "intake:RECEIPT-2026-001")
+
+    def test_optional_intake_metadata_and_ui_aliases_round_trip(self) -> None:
+        reagent = {
+            **self.base_reagent,
+            "receipt_key": "camera:metadata",
+            "pending_order": "PO-2026-1842",
+            "match_score": 0.98,
+            "image_signature": "a" * 64,
+            "confidence": 0.92,
+            "extraction_source": "vision-provider",
+            "extraction_rationale": "Label fields were readable.",
+            "classification_confidence": 0.94,
+            "classification_source": "CAS cache",
+            "classification_rationale": "Reviewed chemistry profile.",
+        }
+
+        insert_reagent(reagent, self.database_path, confirmed=True)
+        stored = list_reagents(self.database_path)[0]
+
+        self.assertEqual(stored["order_reference"], "PO-2026-1842")
+        self.assertEqual(stored["match_score"], 0.98)
+        self.assertEqual(stored["image_signature"], "a" * 64)
+        self.assertEqual(stored["extraction_confidence"], 0.92)
+        self.assertEqual(stored["classification_source"], "CAS cache")
 
 
 if __name__ == "__main__":
