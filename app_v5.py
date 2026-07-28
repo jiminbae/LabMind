@@ -654,10 +654,21 @@ def apply_theme() -> None:
                 box-shadow .16s ease;
         }
 
+        div[data-testid="stTextArea"] textarea {
+            background: #f5f5f7 !important;
+            border: 1px solid #d2d2d7 !important;
+            border-radius: var(--radius-control) !important;
+            box-shadow: none !important;
+            padding: 14px 16px !important;
+            transition: background-color .16s ease, border-color .16s ease,
+                box-shadow .16s ease;
+        }
+
         div[data-testid="stTextInputRootElement"]:focus-within,
         div[data-testid="stNumberInputContainer"]:focus-within,
         div[data-testid="stSelectbox"] [role="group"]:focus-within,
-        div[data-testid="stDateInput"] [data-baseweb="input"]:focus-within {
+        div[data-testid="stDateInput"] [data-baseweb="input"]:focus-within,
+        div[data-testid="stTextArea"] textarea:focus {
             background: #fff !important;
             border-color: var(--accent) !important;
             box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14) !important;
