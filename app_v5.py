@@ -142,43 +142,59 @@ def apply_theme() -> None:
         <style>
         :root {
             --canvas: #f5f5f7;
-            --surface: rgba(255, 255, 255, 0.92);
+            --surface: rgba(255, 255, 255, 0.94);
             --surface-strong: #ffffff;
             --ink: #1d1d1f;
             --secondary: #6e6e73;
-            --tertiary: #6e6e73;
-            --line: rgba(0, 0, 0, 0.09);
-            --line-strong: rgba(0, 0, 0, 0.14);
-            --accent: #0066cc;
-            --accent-hover: #005bb5;
+            --tertiary: #86868b;
+            --line: rgba(0, 0, 0, 0.075);
+            --line-strong: rgba(0, 0, 0, 0.13);
+            --accent: #0071e3;
+            --accent-hover: #0068d1;
             --teal: #087f75;
             --green: #1f7535;
             --amber: #a95d00;
             --red: #d70015;
-            --shadow: 0 10px 34px rgba(0, 0, 0, 0.055);
+            --shadow: 0 18px 55px rgba(0, 0, 0, 0.065);
+            --radius-card: 28px;
+            --radius-control: 14px;
+            --space-1: 8px;
+            --space-2: 12px;
+            --space-3: 16px;
+            --space-4: 24px;
+            --space-5: 32px;
+            --space-6: 48px;
+            --space-7: 64px;
         }
 
         html, body, [class*="css"] {
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
                 "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
         }
 
         .stApp {
-            background: var(--canvas);
+            background:
+                radial-gradient(circle at 50% -180px, #ffffff 0, #f5f5f7 510px),
+                var(--canvas);
             color: var(--ink);
         }
 
         div.block-container {
-            max-width: 1240px;
-            padding: 1.4rem 2rem 4rem;
+            max-width: 1180px;
+            padding: 1rem 2rem 5rem;
         }
 
         header[data-testid="stHeader"] {
             background: transparent;
         }
 
-        #MainMenu, footer {
-            visibility: hidden;
+        #MainMenu,
+        footer,
+        div[data-testid="stToolbar"],
+        div[data-testid="stDecoration"],
+        div[data-testid="stStatusWidget"] {
+            display: none !important;
         }
 
         h1, h2, h3 {
@@ -191,8 +207,8 @@ def apply_theme() -> None:
             border-bottom: 1px solid var(--line);
             display: flex;
             justify-content: space-between;
-            min-height: 58px;
-            padding: 0 2px 14px;
+            min-height: 54px;
+            padding: 0 2px 12px;
         }
 
         .brand {
@@ -204,21 +220,21 @@ def apply_theme() -> None:
         .brand-mark {
             align-items: center;
             background: var(--ink);
-            border-radius: 11px;
+            border-radius: 10px;
             color: #fff;
             display: inline-flex;
             font-size: 13px;
             font-weight: 760;
-            height: 36px;
+            height: 34px;
             justify-content: center;
             letter-spacing: -0.02em;
-            width: 36px;
+            width: 34px;
         }
 
         .brand-name {
             color: var(--ink);
-            font-size: 18px;
-            font-weight: 720;
+            font-size: 17px;
+            font-weight: 700;
             line-height: 1.1;
         }
 
@@ -228,39 +244,110 @@ def apply_theme() -> None:
             margin-top: 3px;
         }
 
+        .topbar-note {
+            align-items: center;
+            color: var(--secondary);
+            display: flex;
+            font-size: 12px;
+            font-weight: 560;
+            gap: 7px;
+        }
+
+        .topbar-note-dot {
+            background: var(--green);
+            border-radius: 999px;
+            box-shadow: 0 0 0 4px rgba(31, 117, 53, 0.10);
+            height: 7px;
+            width: 7px;
+        }
+
         .hero {
-            padding: 46px 0 32px;
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            padding: 46px 0 30px;
+            text-align: center;
         }
 
         .hero-kicker {
             color: var(--accent);
-            font-size: 13px;
-            font-weight: 650;
-            letter-spacing: 0.01em;
-            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: 680;
+            letter-spacing: -0.01em;
+            margin-bottom: 14px;
         }
 
         .hero-title {
             color: var(--ink);
-            font-size: clamp(40px, 5.4vw, 60px);
-            font-weight: 710;
-            letter-spacing: -0.055em;
-            line-height: 0.98;
+            font-size: clamp(44px, 5.5vw, 68px);
+            font-weight: 720;
+            letter-spacing: -0.06em;
+            line-height: 0.99;
             margin: 0;
-            max-width: 860px;
+            max-width: 980px;
+        }
+
+        .hero-title span {
+            color: var(--secondary);
         }
 
         .hero-copy {
             color: var(--secondary);
             font-size: 18px;
             letter-spacing: -0.01em;
-            line-height: 1.55;
-            margin: 20px 0 0;
-            max-width: 720px;
+            line-height: 1.5;
+            margin: 20px auto 0;
+            max-width: 730px;
+        }
+
+        .capability-rail {
+            align-items: stretch;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-top: 24px;
+            max-width: 840px;
+            padding: 5px;
+            width: 100%;
+        }
+
+        .capability {
+            display: grid;
+            gap: 2px;
+            grid-template-columns: 26px 1fr;
+            padding: 12px 18px;
+            text-align: left;
+        }
+
+        .capability + .capability {
+            border-left: 1px solid var(--line);
+        }
+
+        .capability > span {
+            color: var(--accent);
+            font-size: 10px;
+            font-weight: 720;
+            grid-row: 1 / 3;
+            letter-spacing: 0.04em;
+            padding-top: 2px;
+        }
+
+        .capability strong {
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 660;
+        }
+
+        .capability small {
+            color: var(--secondary);
+            font-size: 11px;
+            line-height: 1.35;
         }
 
         .section-header {
-            margin: 8px 0 18px;
+            margin: 0;
         }
 
         .section-eyebrow {
@@ -274,58 +361,79 @@ def apply_theme() -> None:
 
         .section-title {
             color: var(--ink);
-            font-size: 27px;
-            font-weight: 680;
-            letter-spacing: -0.035em;
+            font-size: clamp(26px, 2.5vw, 34px);
+            font-weight: 690;
+            letter-spacing: -0.045em;
             line-height: 1.1;
             margin: 0;
         }
 
         .section-copy {
             color: var(--secondary);
-            font-size: 14px;
-            line-height: 1.5;
-            margin: 7px 0 0;
+            font-size: 15px;
+            line-height: 1.55;
+            margin: 8px 0 0;
             max-width: 720px;
         }
 
         .stepper {
             background: transparent;
             display: grid;
-            gap: 8px;
+            gap: 12px;
             grid-template-columns: repeat(5, 1fr);
-            margin: 2px 0 18px;
+            margin: 0 0 var(--space-1);
         }
 
         .step {
-            background: rgba(255, 255, 255, 0.7);
-            border: 1px solid var(--line);
-            border-radius: 999px;
+            background: transparent;
+            border: 0;
+            border-radius: 0;
             color: var(--tertiary);
             font-size: 12px;
             overflow: hidden;
-            padding: 8px 11px;
-            text-align: center;
+            padding: 13px 2px 0;
+            position: relative;
+            text-align: left;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+
+        .step::before {
+            background: rgba(0, 0, 0, 0.10);
+            border-radius: 999px;
+            content: "";
+            height: 3px;
+            left: 0;
+            position: absolute;
+            right: 0;
+            top: 0;
         }
 
         .step strong {
             color: inherit;
             display: inline;
             font-size: 11px;
-            margin-right: 5px;
+            font-weight: 680;
+            margin-right: 6px;
         }
 
         .step.active {
-            background: var(--ink);
-            border-color: var(--ink);
-            color: #fff;
+            background: transparent;
+            color: var(--ink);
+            font-weight: 650;
+        }
+
+        .step.active::before {
+            background: var(--accent);
         }
 
         .step.complete {
-            background: #fff;
-            color: #3a3a3c;
+            background: transparent;
+            color: #515154;
+        }
+
+        .step.complete::before {
+            background: var(--ink);
         }
 
         div[data-testid="stTabs"] [data-baseweb="tab-list"] {
@@ -401,22 +509,32 @@ def apply_theme() -> None:
         .st-key-query_panel {
             background: var(--surface);
             border: 1px solid var(--line);
-            border-radius: 20px;
-            box-shadow: 0 8px 26px rgba(0, 0, 0, 0.045);
+            border-radius: var(--radius-card);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .st-key-upload_panel > div,
+        .st-key-review_placeholder > div,
+        .st-key-registration_panel > div,
+        .st-key-query_panel > div {
+            padding: var(--space-4);
         }
 
         div[data-testid="stFileUploader"] section {
             background: rgba(245, 245, 247, 0.72);
             border: 1px dashed var(--line-strong);
-            border-radius: 16px;
-            min-height: 126px;
-            padding: 22px;
-            transition: border-color .18s ease, background .18s ease;
+            border-radius: var(--radius-control);
+            min-height: 142px;
+            padding: var(--space-4);
+            transition: border-color .18s ease, background .18s ease,
+                transform .18s ease;
         }
 
         div[data-testid="stFileUploader"] section:hover {
             background: #fff;
             border-color: var(--accent);
+            transform: translateY(-1px);
         }
 
         div[data-testid="stFileUploader"] button,
@@ -424,8 +542,9 @@ def apply_theme() -> None:
         div[data-testid="stDownloadButton"] > button {
             border-radius: 999px;
             font-weight: 600;
-            min-height: 40px;
-            transition: all .18s ease;
+            min-height: 44px;
+            transition: background-color .18s ease, border-color .18s ease,
+                color .18s ease, box-shadow .18s ease, transform .18s ease;
         }
 
         div[data-testid="stFileUploader"] button,
@@ -519,7 +638,38 @@ def apply_theme() -> None:
         textarea {
             background: #fff !important;
             border-color: var(--line-strong) !important;
+            border-radius: var(--radius-control) !important;
+        }
+
+        div[data-testid="stTextInputRootElement"],
+        div[data-testid="stNumberInputContainer"],
+        div[data-testid="stSelectbox"] [role="group"],
+        div[data-testid="stDateInput"] [data-baseweb="input"] {
+            background: #f5f5f7 !important;
+            border: 1px solid #d2d2d7 !important;
             border-radius: 12px !important;
+            box-shadow: none !important;
+            min-height: 44px;
+            transition: background-color .16s ease, border-color .16s ease,
+                box-shadow .16s ease;
+        }
+
+        div[data-testid="stTextInputRootElement"]:focus-within,
+        div[data-testid="stNumberInputContainer"]:focus-within,
+        div[data-testid="stSelectbox"] [role="group"]:focus-within,
+        div[data-testid="stDateInput"] [data-baseweb="input"]:focus-within {
+            background: #fff !important;
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14) !important;
+        }
+
+        div[data-testid="stTextInputRootElement"] input,
+        div[data-testid="stNumberInputContainer"] input,
+        div[data-testid="stSelectbox"] [role="group"] input,
+        div[data-testid="stDateInput"] input,
+        div[data-testid="stDateInput"] [data-baseweb="base-input"] {
+            background: transparent !important;
+            border: 0 !important;
         }
 
         input, textarea {
@@ -543,7 +693,7 @@ def apply_theme() -> None:
         }
 
         div[data-testid="stSegmentedControl"] {
-            margin: 2px 0 18px;
+            margin: 0 0 var(--space-4);
             overflow-x: auto;
             padding-bottom: 2px;
         }
@@ -559,7 +709,7 @@ def apply_theme() -> None:
         div[data-testid="stSegmentedControl"] button {
             border-radius: 9px !important;
             color: var(--secondary) !important;
-            min-height: 36px;
+            min-height: 42px;
         }
 
         div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
@@ -574,7 +724,7 @@ def apply_theme() -> None:
         }
 
         div[data-testid="stButtonGroup"] {
-            margin: 2px 0 18px;
+            margin: 0 0 var(--space-4);
             overflow-x: auto;
             padding-bottom: 2px;
         }
@@ -590,7 +740,7 @@ def apply_theme() -> None:
         div[data-testid="stButtonGroup"] button[data-variant="segmented_control"] {
             border-radius: 9px !important;
             color: var(--secondary) !important;
-            min-height: 36px;
+            min-height: 42px;
         }
 
         div[data-testid="stButtonGroup"] button[data-variant="segmented_control"][data-selected],
@@ -615,13 +765,47 @@ def apply_theme() -> None:
             align-items: center;
             background: rgba(245, 245, 247, 0.72);
             border: 1px solid var(--line);
-            border-radius: 16px;
+            border-radius: var(--radius-control);
             color: var(--secondary);
             display: flex;
             justify-content: center;
-            min-height: 245px;
-            padding: 26px;
+            min-height: 112px;
+            padding: var(--space-4);
             text-align: center;
+        }
+
+        .upload-hint {
+            color: var(--tertiary);
+            font-size: 12px;
+            line-height: 1.5;
+            margin: 12px 2px 0;
+            text-align: center;
+        }
+
+        .preview-list {
+            display: grid;
+            gap: 0;
+            margin-top: 4px;
+        }
+
+        .preview-list > div {
+            align-items: center;
+            border-top: 1px solid var(--line);
+            display: flex;
+            gap: 14px;
+            min-height: 54px;
+        }
+
+        .preview-list span {
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .preview-list strong {
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 620;
         }
 
         .meta-grid {
@@ -629,6 +813,44 @@ def apply_theme() -> None:
             gap: 10px;
             grid-template-columns: repeat(3, minmax(0, 1fr));
             margin-top: 13px;
+        }
+
+        .upload-meta {
+            align-items: center;
+            background: rgba(245, 245, 247, 0.78);
+            border-radius: var(--radius-control);
+            display: grid;
+            gap: 7px;
+            padding: 13px 14px;
+        }
+
+        .upload-meta-name {
+            align-items: baseline;
+            display: flex;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .upload-meta-name span {
+            color: var(--secondary);
+            flex: 0 0 auto;
+            font-size: 11px;
+            font-weight: 620;
+        }
+
+        .upload-meta-name strong {
+            color: var(--ink);
+            font-size: 13px;
+            font-weight: 640;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .upload-meta-detail {
+            color: var(--secondary);
+            font-size: 11px;
+            line-height: 1.4;
         }
 
         .summary-grid {
@@ -864,50 +1086,383 @@ def apply_theme() -> None:
             overflow: hidden;
         }
 
+        div[data-testid="stCode"] {
+            background: #f5f5f7 !important;
+            border: 1px solid var(--line) !important;
+            border-radius: var(--radius-control) !important;
+            overflow: hidden;
+        }
+
+        div[data-testid="stCode"] pre,
+        div[data-testid="stCode"] code,
+        div[data-testid="stCode"] span {
+            color: var(--ink) !important;
+        }
+
+        /* Primary workspace navigation */
+        .st-key-primary_view {
+            backdrop-filter: saturate(180%) blur(18px);
+            background: rgba(245, 245, 247, 0.92);
+            margin: 0 0 var(--space-6);
+            max-width: none;
+            padding: 6px 0;
+            position: sticky;
+            top: 0;
+            z-index: 30;
+        }
+
+        .st-key-primary_view div[data-testid="stButtonGroup"],
+        .st-key-primary_view div[data-testid="stSegmentedControl"] {
+            margin: 0;
+            overflow: visible;
+            padding: 0;
+        }
+
+        .st-key-primary_view [role="radiogroup"],
+        .st-key-primary_view div[data-testid="stSegmentedControl"] > div {
+            backdrop-filter: saturate(180%) blur(18px);
+            background: rgba(232, 232, 237, 0.88);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 17px;
+            box-shadow: 0 8px 26px rgba(0, 0, 0, 0.10);
+            display: flex;
+            margin: 0 auto;
+            max-width: 680px;
+            min-width: 0;
+            padding: 5px;
+            width: 100%;
+        }
+
+        .st-key-primary_view button[data-variant="segmented_control"],
+        .st-key-primary_view div[data-testid="stSegmentedControl"] button {
+            border: 1px solid transparent !important;
+            flex: 1 1 50%;
+            font-size: 14px;
+            font-weight: 640;
+            height: 48px !important;
+            min-height: 48px !important;
+            min-width: 0;
+        }
+
+        .st-key-primary_view button[data-variant="segmented_control"][data-selected],
+        .st-key-primary_view button[data-variant="segmented_control"][aria-checked="true"],
+        .st-key-primary_view div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+            border-color: transparent !important;
+            box-shadow: 0 2px 7px rgba(0, 0, 0, 0.13) !important;
+        }
+
+        .st-key-workspace_shell {
+            margin: 0;
+        }
+
+        .st-key-workspace_shell > div[data-testid="stVerticalBlock"] {
+            gap: var(--space-3);
+        }
+
+        .st-key-intake_start {
+            margin: var(--space-1) auto 0;
+            max-width: 680px;
+        }
+
+        .st-key-intake_workspace .st-key-upload_panel {
+            position: sticky;
+            top: 88px;
+        }
+
+        .st-key-query_mode {
+            max-width: 560px;
+        }
+
+        .st-key-query_mode [role="radiogroup"],
+        .st-key-query_mode div[data-testid="stSegmentedControl"] > div {
+            display: flex;
+            width: 100%;
+        }
+
+        .st-key-query_mode button[data-variant="segmented_control"],
+        .st-key-query_mode div[data-testid="stSegmentedControl"] button {
+            border: 1px solid transparent !important;
+            flex: 1 1 50%;
+            font-weight: 620;
+            min-height: 44px !important;
+            min-width: 0;
+        }
+
+        .st-key-query_mode button[data-variant="segmented_control"][data-selected],
+        .st-key-query_mode button[data-variant="segmented_control"][aria-checked="true"],
+        .st-key-query_mode div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+            border-color: transparent !important;
+        }
+
+        .st-key-query_panel {
+            margin-top: 0;
+        }
+
+        .verification-boundary {
+            display: grid;
+            gap: var(--space-1);
+            padding: 2px 0 var(--space-1);
+        }
+
+        .verification-boundary strong {
+            color: var(--ink);
+            font-size: 15px;
+            font-weight: 650;
+        }
+
+        .verification-boundary span {
+            color: var(--secondary);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .query-ready {
+            align-items: center;
+            background: rgba(245, 245, 247, 0.78);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-control);
+            color: var(--secondary);
+            display: flex;
+            font-size: 14px;
+            justify-content: center;
+            min-height: 88px;
+            padding: var(--space-4);
+            text-align: center;
+        }
+
+        .metric-row {
+            gap: var(--space-3);
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            margin: var(--space-3) 0 var(--space-4);
+        }
+
+        .metric-card {
+            border-radius: 20px;
+            padding: 20px;
+        }
+
+        .summary-grid {
+            gap: var(--space-2);
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            margin-top: var(--space-3);
+        }
+
+        .query-trace {
+            gap: var(--space-2);
+            grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+            margin: var(--space-3) 0 var(--space-4);
+        }
+
+        .status-line,
+        .safety-card,
+        .decision-card,
+        .quiet-note {
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        .confirmation,
+        .order-card.selected {
+            animation: surfaceIn .28s cubic-bezier(.22, 1, .36, 1) both;
+        }
+
+        @keyframes heroRise {
+            from {
+                opacity: 0;
+                transform: translateY(14px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes surfaceIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px) scale(.995);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .hero-kicker {
+            animation: heroRise .42s cubic-bezier(.22, 1, .36, 1) both;
+        }
+
+        .hero-title {
+            animation: heroRise .52s .05s cubic-bezier(.22, 1, .36, 1) both;
+        }
+
+        .hero-copy {
+            animation: heroRise .52s .11s cubic-bezier(.22, 1, .36, 1) both;
+        }
+
+        .capability-rail {
+            animation: heroRise .55s .17s cubic-bezier(.22, 1, .36, 1) both;
+        }
+
+        div.stButton > button:not(:disabled):hover,
+        div[data-testid="stDownloadButton"] > button:not(:disabled):hover {
+            transform: translateY(-1px);
+        }
+
+        div.stButton > button:not(:disabled):active,
+        div[data-testid="stDownloadButton"] > button:not(:disabled):active {
+            transform: scale(.985);
+        }
+
         @media (max-width: 820px) {
             div.block-container {
-                padding: 1rem 1rem 3rem;
+                padding: .75rem 1rem 3.5rem;
             }
 
             .hero {
-                padding: 42px 0 30px;
+                padding: 34px 0 24px;
             }
 
             .hero-title {
-                font-size: 43px;
+                font-size: clamp(36px, 10.3vw, 44px);
+            }
+
+            .hero-copy {
+                font-size: 16px;
+                margin-top: 16px;
+            }
+
+            .capability-rail {
+                background: transparent;
+                border: 0;
+                border-radius: 0;
+                display: flex;
+                gap: var(--space-1);
+                margin-top: var(--space-4);
+                overflow-x: auto;
+                padding: 2px 2px 8px;
+                scroll-snap-type: x proximity;
+            }
+
+            .capability {
+                background: rgba(255, 255, 255, 0.84);
+                border: 1px solid var(--line) !important;
+                border-radius: 16px;
+                flex: 0 0 220px;
+                padding: 13px 15px;
+                scroll-snap-align: start;
+            }
+
+            .st-key-primary_view {
+                margin-bottom: var(--space-6);
+                top: 8px;
+            }
+
+            .st-key-primary_view button[data-variant="segmented_control"],
+            .st-key-primary_view div[data-testid="stSegmentedControl"] button {
+                font-size: 13px;
+                height: 48px !important;
+                min-height: 48px !important;
             }
 
             .stepper {
-                display: flex;
-                overflow-x: auto;
+                display: grid;
+                gap: 8px;
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                margin-top: 8px;
+                overflow: visible;
                 padding-bottom: 4px;
             }
 
             .step {
-                flex: 0 0 auto;
-                min-width: 112px;
+                font-size: 0;
+                min-width: 0;
+                padding-left: 0;
+                padding-right: 0;
+                text-align: center;
             }
 
-            .meta-grid, .metric-row {
-                grid-template-columns: 1fr;
+            .step strong {
+                font-size: 10px;
+                margin-right: 0;
+            }
+
+            .st-key-intake_workspace > div[data-testid="stVerticalBlock"] >
+            div[data-testid="stHorizontalBlock"] {
+                flex-direction: column;
+            }
+
+            .st-key-intake_workspace > div[data-testid="stVerticalBlock"] >
+            div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+                flex: 1 1 auto !important;
+                width: 100% !important;
+            }
+
+            .st-key-intake_workspace .st-key-upload_panel {
+                position: static;
+            }
+
+            .meta-grid {
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             }
 
             .query-trace {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
             }
 
             .summary-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+            }
+
+            .st-key-upload_panel > div,
+            .st-key-review_placeholder > div,
+            .st-key-registration_panel > div,
+            .st-key-query_panel > div {
+                padding: 20px;
             }
         }
 
         @media (max-width: 460px) {
-            .summary-grid {
-                grid-template-columns: 1fr;
+            .topbar-note {
+                display: none;
             }
 
-            .query-trace {
-                grid-template-columns: 1fr;
+            .capability-rail {
+                display: none;
+            }
+
+            .hero {
+                align-items: flex-start;
+                text-align: left;
+            }
+
+            .hero-copy {
+                margin-left: 0;
+            }
+
+            .section-title {
+                font-size: 28px;
+            }
+
+            .st-key-primary_view button[data-variant="segmented_control"],
+            .st-key-primary_view div[data-testid="stSegmentedControl"] button {
+                padding-left: 8px !important;
+                padding-right: 8px !important;
+            }
+
+            .metric-row {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: .01ms !important;
+                animation-iteration-count: 1 !important;
+                scroll-behavior: auto !important;
+                transition-duration: .01ms !important;
             }
         }
         </style>
@@ -1549,8 +2104,12 @@ def render_topbar() -> None:
                 <div class="brand-mark">LM</div>
                 <div>
                     <div class="brand-name">LabMind</div>
-                    <div class="brand-subtitle">Reagent inventory workspace</div>
+                    <div class="brand-subtitle">Reagent intelligence</div>
                 </div>
+            </div>
+            <div class="topbar-note">
+                <span class="topbar-note-dot"></span>
+                Safety-first workflow
             </div>
         </div>
         """,
@@ -1562,12 +2121,32 @@ def render_hero() -> None:
     st.markdown(
         """
         <section class="hero">
-            <div class="hero-kicker">A clearer way to manage the lab</div>
-            <h1 class="hero-title">Every reagent.<br>Ready when you need it.</h1>
+            <div class="hero-kicker">Verified lab inventory</div>
+            <h1 class="hero-title">
+                Know what’s in the lab.<br>
+                <span>And what it can do.</span>
+            </h1>
             <p class="hero-copy">
-                Review label details, connect incoming orders, assign storage,
-                and explore inventory from one focused workspace.
+                Receive reagents with a reviewable trail, classify their chemical
+                function, and ask inventory questions with evidence behind every answer.
             </p>
+            <div class="capability-rail" aria-label="LabMind capabilities">
+                <div class="capability">
+                    <span>01</span>
+                    <strong>Label to order</strong>
+                    <small>Four fields, verified</small>
+                </div>
+                <div class="capability">
+                    <span>02</span>
+                    <strong>Chemistry to storage</strong>
+                    <small>AI labels, hard safety rules</small>
+                </div>
+                <div class="capability">
+                    <span>03</span>
+                    <strong>Question to evidence</strong>
+                    <small>Structure and stock checked</small>
+                </div>
+            </div>
         </section>
         """,
         unsafe_allow_html=True,
@@ -1603,7 +2182,7 @@ def render_stepper() -> None:
         "Label",
         "Details",
         "Order",
-        "Storage",
+        "Classify",
         "Review",
     ]
     items = []
@@ -1642,7 +2221,7 @@ def render_upload_step() -> bytes | None:
     )
     if uploaded_file is None:
         st.markdown(
-            '<div class="empty-state">Drop a PNG, JPG, or WebP image here to begin.</div>',
+            '<p class="upload-hint">PNG, JPG, or WebP · a straight-on photo works best.</p>',
             unsafe_allow_html=True,
         )
         return None
@@ -1658,32 +2237,33 @@ def render_upload_step() -> bytes | None:
     uploaded_at = st.session_state.get("add_upload_time", "—")
     st.markdown(
         f"""
-        <div class="meta-grid">
-            <div class="meta-item">
-                <div class="meta-label">File</div>
-                <div class="meta-value">{escaped(uploaded_file.name)}</div>
+        <div class="upload-meta">
+            <div class="upload-meta-name">
+                <span>Label image</span>
+                <strong title="{escaped(uploaded_file.name)}">{escaped(uploaded_file.name)}</strong>
             </div>
-            <div class="meta-item">
-                <div class="meta-label">Type · Size</div>
-                <div class="meta-value">{escaped(uploaded_file.type or "Image")} · {format_file_size(len(contents))}</div>
-            </div>
-            <div class="meta-item">
-                <div class="meta-label">Uploaded</div>
-                <div class="meta-value">{uploaded_at}</div>
+            <div class="upload-meta-detail">
+                {escaped(uploaded_file.type or "Image")} ·
+                {format_file_size(len(contents))} · {uploaded_at}
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    extract_label = (
+        "Re-extract label"
+        if st.session_state.get("add_extraction_complete")
+        else "Extract label"
+    )
     if st.button(
-        "Extract label",
+        extract_label,
         type="primary",
         width="stretch",
         key="extract_label",
     ):
         initialize_extraction_state()
     st.markdown(
-        '<p class="quiet-note">This build uses representative values until label services are connected.</p>',
+        '<p class="quiet-note">Review every extracted field before continuing to order matching.</p>',
         unsafe_allow_html=True,
     )
     return contents
@@ -1701,7 +2281,7 @@ def render_extraction_step() -> None:
         '<div class="status-line"><span class="status-dot"></span>Fields are ready for review</div>',
         unsafe_allow_html=True,
     )
-    left, right = st.columns(2, gap="large")
+    left, right = st.columns(2, gap="small")
     with left:
         st.text_input("Chemical name", key="add_field_chemical_name")
         st.text_input("CAS number", key="add_field_cas_number")
@@ -1787,7 +2367,7 @@ def render_order_match_step() -> None:
         render_order_card(selected, selected=True)
     elif scenario == "Multiple matches":
         options = {order["order_id"]: order for order in matches}
-        selected_id = st.radio(
+        selected_id = st.selectbox(
             "Select the matching order",
             list(options),
             format_func=lambda value: (
@@ -1865,7 +2445,7 @@ def render_storage_step() -> None:
         unsafe_allow_html=True,
     )
 
-    chemistry_col, constraint_col = st.columns(2, gap="large")
+    chemistry_col, constraint_col = st.columns(2, gap="small")
     with chemistry_col:
         st.markdown("##### Chemical function labels")
         labels = st.multiselect(
@@ -2109,10 +2689,9 @@ def render_confirmation_step() -> None:
             f"""
             <div class="confirmation">
                 <div class="confirmation-id">{escaped(confirmation["record_id"])}</div>
-                <div class="confirmation-title">Registration preview prepared</div>
+                <div class="confirmation-title">Registration draft complete</div>
                 <p class="section-copy">
-                    The reviewed payload is ready for a future backend handoff.
-                    No database changes were made.
+                    The reviewed record is ready to sync with the inventory service.
                 </p>
             </div>
             """,
@@ -2131,14 +2710,7 @@ def render_confirmation_step() -> None:
 
 def render_registration_workspace() -> None:
     st.session_state.setdefault("add_stage", "Details")
-    stage = st.segmented_control(
-        "Registration stage",
-        ["Details", "Order", "Storage", "Review"],
-        key="add_stage",
-        required=True,
-        width="stretch",
-        label_visibility="collapsed",
-    )
+    stage = st.session_state["add_stage"]
     if stage == "Details":
         render_extraction_step()
         render_stage_navigation(next_stage="Order", next_label="Continue to order")
@@ -2172,38 +2744,50 @@ def render_registration_workspace() -> None:
 
 
 def render_add_tab() -> None:
+    render_section_header(
+        "Reagent intake",
+        "Register with confidence",
+        "Move from a label photo to a reviewed storage decision without losing the evidence.",
+    )
     render_stepper()
-    left, right = st.columns([0.9, 1.1], gap="large")
-    with left:
-        with st.container(border=True, key="upload_panel"):
-            uploaded_contents = render_upload_step()
-    with right:
-        if uploaded_contents is None:
-            with st.container(border=True, key="review_placeholder"):
-                render_section_header(
-                    "Next",
-                    "Review workspace",
-                    "Extracted details and inventory decisions will appear here.",
-                )
-                st.markdown(
-                    '<div class="empty-state">Add a label image to open the review workflow.</div>',
-                    unsafe_allow_html=True,
-                )
-            return
-        if not st.session_state.get("add_extraction_complete"):
-            with st.container(border=True, key="review_placeholder"):
-                render_section_header(
-                    "Next",
-                    "Review workspace",
-                    "Select Extract label when the image is ready.",
-                )
-                st.markdown(
-                    '<div class="empty-state">Label details will remain editable before confirmation.</div>',
-                    unsafe_allow_html=True,
-                )
-            return
-        with st.container(border=True, key="registration_panel"):
-            render_registration_workspace()
+    upload_key = f"label_upload_{st.session_state.get('add_upload_nonce', 0)}"
+    has_upload = st.session_state.get(upload_key) is not None
+
+    if not has_upload:
+        with st.container(key="intake_start"):
+            with st.container(border=True, key="upload_panel"):
+                render_upload_step()
+        return
+
+    with st.container(key="intake_workspace"):
+        left, right = st.columns([0.72, 1.28], gap="medium")
+        with left:
+            with st.container(border=True, key="upload_panel"):
+                uploaded_contents = render_upload_step()
+        with right:
+            if uploaded_contents is None:
+                return
+            if not st.session_state.get("add_extraction_complete"):
+                with st.container(border=True, key="review_placeholder"):
+                    render_section_header(
+                        "Ready to review",
+                        "Extract four label fields",
+                        "The extracted values stay editable before any inventory decision is prepared.",
+                    )
+                    st.markdown(
+                        """
+                        <div class="preview-list">
+                            <div><span>01</span><strong>CAS number</strong></div>
+                            <div><span>02</span><strong>Specification</strong></div>
+                            <div><span>03</span><strong>Batch or lot</strong></div>
+                            <div><span>04</span><strong>Manufacturer</strong></div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                return
+            with st.container(border=True, key="registration_panel"):
+                render_registration_workspace()
 
 
 def render_inventory_metrics(frame: pd.DataFrame) -> None:
@@ -2372,20 +2956,13 @@ def set_natural_query_example(question: str) -> None:
     st.session_state.pop("query_natural_plan", None)
 
 
+def apply_natural_query_example(examples: dict[str, str]) -> None:
+    selection = st.session_state.get("query_example_choice")
+    if selection in examples:
+        set_natural_query_example(examples[selection])
+
+
 def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
-    st.markdown(
-        """
-        <div class="safety-card">
-            <div class="safety-kicker">Verified-answer boundary</div>
-            <div class="safety-title">Meaning is interpreted. Availability comes from inventory.</div>
-            <div class="order-detail">
-                Structured questions become bound database filters. Chemistry questions
-                become validated SMARTS, run through RDKit, then join back to on-hand records.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
     st.text_area(
         "Ask about inventory",
         placeholder=(
@@ -2394,24 +2971,22 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
         height=110,
         key="query_natural_text",
     )
-    example_cols = st.columns(3)
-    examples = [
-        (
-            "Chiral ligands",
-            "Do we have a chiral phosphine ligand for asymmetric reduction?",
+    examples = {
+        "Chiral ligands": (
+            "Do we have a chiral phosphine ligand for asymmetric reduction?"
         ),
-        ("Protic solvents", "Which protic solvents are currently on hand?"),
-        ("Expiry check", "Show reagents expiring within 30 days."),
-    ]
-    for column, (label, question) in zip(example_cols, examples):
-        with column:
-            st.button(
-                label,
-                width="stretch",
-                key=f"query_example_{label.lower().replace(' ', '_')}",
-                on_click=set_natural_query_example,
-                args=(question,),
-            )
+        "Protic solvents": "Which protic solvents are currently on hand?",
+        "Expiry check": "Show reagents expiring within 30 days.",
+    }
+    st.pills(
+        "Suggested questions",
+        list(examples),
+        key="query_example_choice",
+        width="stretch",
+        label_visibility="collapsed",
+        on_change=apply_natural_query_example,
+        args=(examples,),
+    )
     if st.button(
         "Run verified search",
         type="primary",
@@ -2423,10 +2998,24 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
             frame,
         )
 
+    with st.expander("How answers are verified"):
+        st.markdown(
+            """
+            <div class="verification-boundary">
+                <strong>Meaning is interpreted. Availability comes from inventory.</strong>
+                <span>
+                    Structured questions become bound filters. Chemistry questions become
+                    validated SMARTS, run through RDKit, then join back to on-hand records.
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     plan = st.session_state.get("query_natural_plan")
     if not plan:
         st.markdown(
-            '<div class="empty-state">Ask a question to see its verified execution path.</div>',
+            '<div class="query-ready">Ask a question to see the verified execution path and matching inventory records.</div>',
             unsafe_allow_html=True,
         )
         return empty_inventory_result(frame)
@@ -2495,11 +3084,13 @@ def render_query_tab() -> None:
         "Find what the lab has on hand",
         "Search by precise filters or describe what you are looking for.",
     )
-    mode = st.radio(
+    mode = st.segmented_control(
         "Query mode",
         ["Basic filters", "Natural-language query"],
-        horizontal=True,
         key="query_mode",
+        default="Basic filters",
+        required=True,
+        width="stretch",
         label_visibility="collapsed",
     )
     with st.container(border=True, key="query_panel"):
@@ -2525,11 +3116,20 @@ def main() -> None:
     apply_theme()
     render_topbar()
     render_hero()
-    add_tab, query_tab = st.tabs(["Add Reagent", "Query Inventory"])
-    with add_tab:
-        render_add_tab()
-    with query_tab:
-        render_query_tab()
+    primary_view = st.segmented_control(
+        "Workspace",
+        ["Reagent intake", "Inventory search"],
+        key="primary_view",
+        default="Reagent intake",
+        required=True,
+        width="stretch",
+        label_visibility="collapsed",
+    )
+    with st.container(key="workspace_shell"):
+        if primary_view == "Reagent intake":
+            render_add_tab()
+        else:
+            render_query_tab()
 
 
 if __name__ == "__main__":
