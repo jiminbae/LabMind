@@ -199,26 +199,45 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertTrue(forbidden.isdisjoint(imported))
 
     def test_registration_stages_render_without_errors(self) -> None:
-        harness = """
+        harness_template = """
 import streamlit as st
 from app_v5 import get_sample_extraction_result, render_registration_workspace
 
 for field, value in get_sample_extraction_result().items():
-    st.session_state.setdefault(f"add_field_{field}", value)
+    st.session_state.setdefault(f"add_field_{{field}}", value)
 st.session_state.setdefault("add_extraction_complete", True)
-st.session_state.setdefault("add_stage", "Details")
+st.session_state["add_stage"] = "{stage}"
 st.session_state.setdefault("add_order_scenario", "Unique match")
 st.session_state.setdefault("add_storage_location", "Flammable Cabinet B")
 render_registration_workspace()
 """
-        app = AppTest.from_string(harness).run(timeout=20)
-        self.assertEqual(len(app.exception), 0)
-        self.assertEqual(app.segmented_control[0].value, "Details")
-
-        for stage in ("Order", "Storage", "Review"):
-            app.segmented_control[0].set_value(stage)
-            app.run(timeout=20)
+        for stage in ("Details", "Order", "Storage", "Review"):
+            app = AppTest.from_string(
+                harness_template.format(stage=stage)
+            ).run(timeout=20)
             self.assertEqual(len(app.exception), 0, stage)
+
+    def test_main_workspace_navigation_renders_one_view_at_a_time(self) -> None:
+        app = AppTest.from_file("app.py").run(timeout=20)
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(app.segmented_control[0].key, "primary_view")
+        self.assertEqual(app.segmented_control[0].value, "Reagent intake")
+        self.assertEqual(len(app.file_uploader), 1)
+        self.assertEqual(len(app.text_area), 0)
+
+        app.segmented_control[0].set_value("Inventory search")
+        app.run(timeout=20)
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(len(app.file_uploader), 0)
+        query_mode = next(
+            control
+            for control in app.segmented_control
+            if control.key == "query_mode"
+        )
+        query_mode.set_value("Natural-language query")
+        app.run(timeout=20)
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(len(app.text_area), 1)
 
     def test_chemical_query_interface_renders_verified_results(self) -> None:
         harness = """
@@ -242,8 +261,10 @@ render_natural_language_query(load_sample_inventory())
     def test_modern_streamlit_style_hooks_are_present(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")
         self.assertIn('button[data-testid="stBaseButton-primary"]', source)
-        self.assertIn('button[data-testid="stTab"]', source)
         self.assertIn('div[data-testid="stButtonGroup"]', source)
+        self.assertIn(".st-key-primary_view", source)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", source)
+        self.assertNotIn('st.tabs(["Add Reagent", "Query Inventory"])', source)
         config = Path(".streamlit/config.toml").read_text(encoding="utf-8")
         self.assertIn('base = "light"', config)
 
