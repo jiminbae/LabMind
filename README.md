@@ -2,14 +2,14 @@
 
 LabMind is a focused reagent intake and inventory-discovery workspace.
 
-The primary application is `app_v5.py`. A static browser build remains in
-`site/` for GitHub Pages.
+The stable entrypoint is `app.py`, which loads the current interface from
+`app_v5.py`. A static browser build remains in `site/` for GitHub Pages.
 
 ## Run
 
 ```powershell
 pip install -r requirements.txt
-streamlit run app_v5.py
+streamlit run app.py
 ```
 
 ## Implemented workflows
