@@ -24,6 +24,11 @@ from app_v5 import (
     validate_cas_number,
 )
 
+SINGLE_PIXEL_PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010804000000b51c0c02"
+    "0000000b4944415478da6364f80f00010501012718e3660000000049454e44ae426082"
+)
+
 
 class AppV5HelpersTest(unittest.TestCase):
     def test_inventory_loads(self) -> None:
@@ -216,6 +221,27 @@ render_registration_workspace()
                 harness_template.format(stage=stage)
             ).run(timeout=20)
             self.assertEqual(len(app.exception), 0, stage)
+
+    def test_intake_fields_survive_stage_navigation(self) -> None:
+        app = AppTest.from_file("app.py").run(timeout=20)
+        app.file_uploader[0].upload(
+            "label.png",
+            SINGLE_PIXEL_PNG,
+            "image/png",
+        )
+        app.run(timeout=20)
+        next(
+            button for button in app.button if button.label == "Extract label"
+        ).click()
+        app.run(timeout=20)
+        next(
+            button for button in app.button if button.label == "Continue to order"
+        ).click()
+        app.run(timeout=20)
+        state = app.session_state.filtered_state
+        self.assertEqual(state["add_field_chemical_name"], "Ethanol")
+        self.assertEqual(state["add_field_cas_number"], "64-17-5")
+        self.assertEqual(state["add_field_quantity"], 500.0)
 
     def test_main_workspace_navigation_renders_one_view_at_a_time(self) -> None:
         app = AppTest.from_file("app.py").run(timeout=20)
