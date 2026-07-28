@@ -11,11 +11,14 @@ from app_v5 import (
     can_confirm_registration,
     clear_state_keys,
     confirm_sample_registration,
+    compile_structured_query,
     determine_storage_location,
+    execute_smarts_query,
     filter_sample_inventory,
     get_chemical_classification,
     load_sample_inventory,
     reset_add_workflow,
+    route_natural_language_query,
     synchronize_classification_state,
     uploaded_file_signature,
     validate_cas_number,
@@ -123,6 +126,58 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertIn("Organometallic", state["add_chemical_labels"])
         self.assertEqual(state["add_storage_location"], "Manual Review Required")
 
+    def test_structured_query_uses_bound_plan(self) -> None:
+        frame = load_sample_inventory()
+        plan = compile_structured_query("How much ethanol is left?", frame)
+        self.assertEqual(plan["route"], "structured")
+        self.assertEqual(plan["results"]["Chemical name"].tolist(), ["Ethanol"])
+        self.assertIn("?", plan["query_code"])
+        self.assertNotIn("ethanol", plan["query_code"].lower())
+        malicious = compile_structured_query(
+            "ethanol'; DROP TABLE inventory; --",
+            frame,
+        )
+        self.assertNotIn("DROP TABLE", malicious["query_code"])
+
+    def test_unknown_query_returns_no_inventory(self) -> None:
+        frame = load_sample_inventory()
+        plan = route_natural_language_query("What should I synthesize tomorrow?", frame)
+        self.assertEqual(plan["route"], "unsupported")
+        self.assertTrue(plan["results"].empty)
+
+    def test_chemical_query_runs_structure_match_then_inventory_join(self) -> None:
+        frame = load_sample_inventory()
+        plan = route_natural_language_query(
+            "Do we have a chiral phosphine ligand for asymmetric reduction?",
+            frame,
+        )
+        self.assertEqual(plan["route"], "chemical")
+        self.assertEqual(
+            plan["results"]["Chemical name"].tolist(),
+            ["(R)-BINAP", "(S)-SEGPHOS"],
+        )
+        self.assertTrue((plan["results"]["Quantity"] > 0).all())
+        self.assertIn("Match evidence", plan["results"].columns)
+
+    def test_chemical_concept_examples(self) -> None:
+        frame = load_sample_inventory()
+        expected = {
+            "Which protic solvents are on hand?": ["Ethanol", "Methanol"],
+            "Find a nitrile reagent": ["Acetonitrile"],
+            "Show Lewis acids": ["Titanium tetrachloride"],
+            "Find organometallic reagents": ["n-Butyllithium"],
+        }
+        for query, names in expected.items():
+            with self.subTest(query=query):
+                plan = route_natural_language_query(query, frame)
+                self.assertEqual(plan["results"]["Chemical name"].tolist(), names)
+
+    def test_invalid_smarts_fails_closed(self) -> None:
+        frame = load_sample_inventory()
+        result, _, warning = execute_smarts_query(frame, ["[invalid"], [])
+        self.assertTrue(result.empty)
+        self.assertIn("failed validation", warning)
+
     def test_no_backend_module_is_imported(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")
         tree = ast.parse(source)
@@ -164,6 +219,25 @@ render_registration_workspace()
             app.segmented_control[0].set_value(stage)
             app.run(timeout=20)
             self.assertEqual(len(app.exception), 0, stage)
+
+    def test_chemical_query_interface_renders_verified_results(self) -> None:
+        harness = """
+from app_v5 import load_sample_inventory, render_natural_language_query
+render_natural_language_query(load_sample_inventory())
+"""
+        app = AppTest.from_string(harness).run(timeout=20)
+        self.assertEqual(len(app.exception), 0)
+        app.text_area[0].set_value(
+            "Do we have a chiral phosphine ligand for asymmetric reduction?"
+        )
+        next(
+            button
+            for button in app.button
+            if button.label == "Run verified search"
+        ).click()
+        app.run(timeout=20)
+        self.assertEqual(len(app.exception), 0)
+        self.assertIn("2 verified on-hand match", app.success[0].value)
 
     def test_modern_streamlit_style_hooks_are_present(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")

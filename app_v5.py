@@ -9,6 +9,11 @@ from typing import Any, MutableMapping
 import pandas as pd
 import streamlit as st
 
+try:
+    from rdkit import Chem
+except ImportError:  # The UI fails closed until the chemistry runtime is installed.
+    Chem = None
+
 
 ADD_STATE_KEYS = {
     "add_file_signature",
@@ -1203,7 +1208,7 @@ def load_sample_inventory(today: date | None = None) -> pd.DataFrame:
             "Ambient temperature · Keep away from oxidizers",
         ),
         "210169-54-3": (
-            "COc1ccc2c(c1OC)-c1c(P(c3ccccc3)c3ccccc3)ccc3ccccc13",
+            "C1OC2=C(O1)C(=C(C=C2)P(C3=CC=CC=C3)C4=CC=CC=C4)C5=C(C=CC6=C5OCO6)P(C7=CC=CC=C7)C8=CC=CC=C8",
             "Chiral ligand · Phosphine ligand · Organophosphorus compound",
             "Ambient temperature · Keep away from oxidizers",
         ),
@@ -1273,45 +1278,267 @@ def filter_sample_inventory(
     return filtered.reset_index(drop=True)
 
 
+def empty_inventory_result(frame: pd.DataFrame) -> pd.DataFrame:
+    return frame.iloc[0:0].copy().reset_index(drop=True)
+
+
+def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
+    """Compile an allowlisted inventory intent into SQL plus bound parameters."""
+    normalized = query.lower().strip()
+    empty = empty_inventory_result(frame)
+    if not normalized:
+        return {
+            "route": "unsupported",
+            "route_label": "Needs a question",
+            "interpretation": "Enter an inventory or chemistry question to begin.",
+            "query_code": "",
+            "parameters": [],
+            "results": empty,
+            "warning": "",
+        }
+
+    chemical_aliases = {
+        "ethanol": "Ethanol",
+        "methanol": "Methanol",
+        "acetonitrile": "Acetonitrile",
+        "dcm": "Dichloromethane",
+        "dichloromethane": "Dichloromethane",
+        "binap": "(R)-BINAP",
+        "segphos": "(S)-SEGPHOS",
+    }
+    requested_chemical = next(
+        (
+            canonical
+            for alias, canonical in chemical_aliases.items()
+            if alias in normalized
+        ),
+        None,
+    )
+    if requested_chemical:
+        result = frame[
+            (frame["Chemical name"].str.lower() == requested_chemical.lower())
+            & (frame["Quantity"] > 0)
+            & (frame["Status"] != "Expired")
+        ]
+        return {
+            "route": "structured",
+            "route_label": "Structured inventory query",
+            "interpretation": (
+                f"Current on-hand inventory records for {requested_chemical}."
+            ),
+            "query_code": (
+                "SELECT * FROM inventory\n"
+                "WHERE LOWER(chemical_name) = LOWER(?)\n"
+                "  AND quantity > ? AND status <> ?;"
+            ),
+            "parameters": [requested_chemical, 0, "Expired"],
+            "results": result.reset_index(drop=True),
+            "warning": "",
+        }
+    if "sigma" in normalized and ("low" in normalized or "below" in normalized):
+        result = frame[
+            (frame["Manufacturer"] == "Sigma-Aldrich")
+            & (frame["Quantity"] < 10)
+            & (frame["Quantity"] > 0)
+            & (frame["Status"] != "Expired")
+        ]
+        return {
+            "route": "structured",
+            "route_label": "Structured inventory query",
+            "interpretation": "On-hand Sigma-Aldrich records below 10 units.",
+            "query_code": (
+                "SELECT * FROM inventory\n"
+                "WHERE manufacturer = ? AND quantity < ?\n"
+                "  AND quantity > ? AND status <> ?;"
+            ),
+            "parameters": ["Sigma-Aldrich", 10, 0, "Expired"],
+            "results": result.reset_index(drop=True),
+            "warning": "",
+        }
+    if "expir" in normalized and ("30" in normalized or "soon" in normalized):
+        result = frame[
+            frame["Expiry state"].isin(["Expiring soon", "Expired"])
+        ]
+        return {
+            "route": "structured",
+            "route_label": "Structured inventory query",
+            "interpretation": "Records expired or expiring within 30 days.",
+            "query_code": (
+                "SELECT * FROM inventory\n"
+                "WHERE expiry_date <= CURRENT_DATE + INTERVAL '30 days';"
+            ),
+            "parameters": [],
+            "results": result.reset_index(drop=True),
+            "warning": "",
+        }
+    if "storage" in normalized and ("count" in normalized or "group" in normalized):
+        return {
+            "route": "structured",
+            "route_label": "Structured inventory query",
+            "interpretation": "Current inventory grouped by assigned storage location.",
+            "query_code": (
+                "SELECT storage_location, COUNT(*) AS records\n"
+                "FROM inventory WHERE quantity > ?\n"
+                "GROUP BY storage_location;"
+            ),
+            "parameters": [0],
+            "results": frame[frame["Quantity"] > 0].reset_index(drop=True),
+            "warning": "",
+        }
+    return {
+        "route": "unsupported",
+        "route_label": "Needs clarification",
+        "interpretation": (
+            "The question could not be translated into an approved inventory filter."
+        ),
+        "query_code": "",
+        "parameters": [],
+        "results": empty,
+        "warning": "Try a chemical name, expiry window, manufacturer, or chemistry concept.",
+    }
+
+
+def translate_chemical_query(query: str) -> dict[str, Any] | None:
+    """Translate supported chemistry concepts into validated SMARTS templates."""
+    normalized = query.lower().strip()
+    if any(term in normalized for term in ("chiral", "asymmetric", "phosphine ligand")):
+        return {
+            "concept": "Chiral phosphine ligand",
+            "patterns": ["[P;X3]([#6])([#6])[#6]"],
+            "required_labels": ["Chiral ligand", "Phosphine ligand"],
+            "explanation": (
+                "Phosphine substructure match intersected with the cached chiral-ligand label."
+            ),
+        }
+    if any(term in normalized for term in ("protic solvent", "protic")):
+        return {
+            "concept": "Protic solvent",
+            "patterns": ["[O,S;H1]"],
+            "required_labels": ["Protic solvent"],
+            "explanation": "Heteroatom bearing an exchangeable hydrogen.",
+        }
+    if any(term in normalized for term in ("nitrile", "cyano")):
+        return {
+            "concept": "Nitrile-containing reagent",
+            "patterns": ["[C]#[N]"],
+            "required_labels": [],
+            "explanation": "Carbon–nitrogen triple-bond substructure.",
+        }
+    if "lewis acid" in normalized:
+        return {
+            "concept": "Lewis acid",
+            "patterns": ["[Ti]"],
+            "required_labels": ["Lewis acid"],
+            "explanation": "Validated structure match intersected with the CAS-level Lewis-acid label.",
+        }
+    if any(term in normalized for term in ("organometallic", "organolithium")):
+        return {
+            "concept": "Organometallic reagent",
+            "patterns": ["[Li,Na,K,Mg,Zn,Cu,Ti,Fe]-[C]"],
+            "required_labels": ["Organometallic"],
+            "explanation": "Direct metal–carbon bond with a cached organometallic label.",
+        }
+    return None
+
+
+def execute_smarts_query(
+    frame: pd.DataFrame,
+    patterns: list[str],
+    required_labels: list[str],
+) -> tuple[pd.DataFrame, int, str]:
+    """Run RDKit substructure matching, then join only to usable inventory rows."""
+    empty = empty_inventory_result(frame)
+    if Chem is None:
+        return empty, len(frame), "RDKit chemistry runtime is unavailable."
+    query_molecules = [Chem.MolFromSmarts(pattern) for pattern in patterns]
+    if not query_molecules or any(query is None for query in query_molecules):
+        return empty, 0, "The translated SMARTS pattern failed validation."
+
+    matched_indices: list[int] = []
+    skipped = 0
+    for index, row in frame.iterrows():
+        smiles = str(row.get("SMILES", "")).strip()
+        molecule = (
+            Chem.MolFromSmiles(smiles)
+            if smiles and smiles != "Not available"
+            else None
+        )
+        if molecule is None:
+            skipped += 1
+            continue
+        structure_matches = all(
+            molecule.HasSubstructMatch(query_molecule)
+            for query_molecule in query_molecules
+        )
+        label_text = str(row.get("Chemical labels", "")).lower()
+        labels_match = all(label.lower() in label_text for label in required_labels)
+        usable_inventory = row["Quantity"] > 0 and row["Status"] != "Expired"
+        if structure_matches and labels_match and usable_inventory:
+            matched_indices.append(index)
+
+    result = frame.loc[matched_indices].copy().reset_index(drop=True)
+    if not result.empty:
+        pattern_text = " AND ".join(patterns)
+        result["Match evidence"] = f"RDKit: {pattern_text}"
+    return result, skipped, ""
+
+
+def route_natural_language_query(
+    query: str, frame: pd.DataFrame
+) -> dict[str, Any]:
+    """Route chemistry concepts before structured inventory filters."""
+    normalized = query.lower().strip()
+    chemical_signals = (
+        "chiral",
+        "asymmetric",
+        "ligand",
+        "protic",
+        "nitrile",
+        "cyano",
+        "lewis acid",
+        "organometallic",
+        "organolithium",
+        "substructure",
+    )
+    translation = translate_chemical_query(query)
+    if translation:
+        result, skipped, warning = execute_smarts_query(
+            frame,
+            translation["patterns"],
+            translation["required_labels"],
+        )
+        return {
+            "route": "chemical",
+            "route_label": "Chemical meaning query",
+            "interpretation": translation["concept"],
+            "query_code": "\n".join(translation["patterns"]),
+            "parameters": translation["required_labels"],
+            "results": result,
+            "warning": warning,
+            "explanation": translation["explanation"],
+            "skipped": skipped,
+        }
+    if any(signal in normalized for signal in chemical_signals):
+        return {
+            "route": "unsupported",
+            "route_label": "Chemistry translation unavailable",
+            "interpretation": (
+                "This chemistry concept needs a reviewed SMARTS translation before search."
+            ),
+            "query_code": "",
+            "parameters": [],
+            "results": empty_inventory_result(frame),
+            "warning": "No model-only availability answer was generated.",
+        }
+    return compile_structured_query(query, frame)
+
+
 def interpret_sample_query(
     query: str, frame: pd.DataFrame
 ) -> tuple[str, str, pd.DataFrame]:
-    """Return a safe UI preview without generating or executing SQL."""
-    normalized = query.lower().strip()
-    if "sigma" in normalized and ("low" in normalized or "below" in normalized):
-        result = frame[
-            (frame["Manufacturer"] == "Sigma-Aldrich") & (frame["Quantity"] < 10)
-        ]
-        return (
-            "Sigma-Aldrich records with fewer than 10 units in stock.",
-            'FILTER manufacturer = "Sigma-Aldrich" AND quantity < 10',
-            result.reset_index(drop=True),
-        )
-    if "expir" in normalized and ("30" in normalized or "soon" in normalized):
-        result = frame[frame["Expiry state"].isin(["Expiring soon", "Expired"])]
-        return (
-            "Records that are expired or reach their expiry date within 30 days.",
-            'FILTER expiry_state IN ["Expiring soon", "Expired"]',
-            result.reset_index(drop=True),
-        )
-    if "flammable" in normalized:
-        result = frame[frame["Storage location"].str.contains("Flammable", case=False)]
-        return (
-            "Records assigned to a flammable-material storage location.",
-            'FILTER storage_location CONTAINS "Flammable"',
-            result.reset_index(drop=True),
-        )
-    if "storage" in normalized and ("count" in normalized or "group" in normalized):
-        return (
-            "All records, grouped visually by storage location below.",
-            "GROUP records BY storage_location",
-            frame.reset_index(drop=True),
-        )
-    return (
-        "A representative inventory result for interface review.",
-        "PREVIEW first 5 inventory records",
-        frame.head(5).reset_index(drop=True),
-    )
+    """Compatibility wrapper for the structured inventory query helper."""
+    plan = compile_structured_query(query, frame)
+    return plan["interpretation"], plan["query_code"], plan["results"]
 
 
 def render_topbar() -> None:
@@ -2016,8 +2243,24 @@ def render_inventory_results(frame: pd.DataFrame) -> None:
 
     display_frame = frame.copy()
     display_frame["Expiry date"] = pd.to_datetime(display_frame["Expiry date"])
+    display_columns = [
+        "Record ID",
+        "Chemical name",
+        "CAS number",
+        "Manufacturer",
+        "Quantity",
+        "Unit",
+        "Status",
+        "Expiry date",
+        "Storage location",
+    ]
+    if "Match evidence" in display_frame.columns:
+        display_columns.extend(["Chemical labels", "SMILES", "Match evidence"])
+    display_columns = [
+        column for column in display_columns if column in display_frame.columns
+    ]
     st.dataframe(
-        display_frame,
+        display_frame[display_columns],
         width="stretch",
         hide_index=True,
         column_config={
@@ -2059,6 +2302,8 @@ def clear_query_state() -> None:
         "query_expiry",
         "query_minimum",
         "query_results",
+        "query_natural_text",
+        "query_natural_plan",
     }
     clear_state_keys(st.session_state, frozenset(keys))
 
@@ -2122,48 +2367,125 @@ def render_basic_query(frame: pd.DataFrame) -> pd.DataFrame:
     return st.session_state["query_results"]
 
 
-def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
-    st.text_area(
-        "Ask about inventory",
-        placeholder=(
-            "Try “Show reagents expiring within 30 days” or "
-            "“Find Sigma-Aldrich products with low stock.”"
-        ),
-        height=110,
-        key="query_natural_text",
-    )
-    if st.button(
-        "Preview results",
-        type="primary",
-        width="stretch",
-        key="run_natural_query",
-    ):
-        interpretation, query_preview, result = interpret_sample_query(
-            st.session_state.get("query_natural_text", ""),
-            frame,
-        )
-        st.session_state["query_interpretation"] = interpretation
-        st.session_state["query_plan"] = query_preview
-        st.session_state["query_natural_results"] = result
+def set_natural_query_example(question: str) -> None:
+    st.session_state["query_natural_text"] = question
+    st.session_state.pop("query_natural_plan", None)
 
-    result = st.session_state.get("query_natural_results", frame.head(5))
-    interpretation = st.session_state.get(
-        "query_interpretation",
-        "Enter a question to preview how inventory results could be organized.",
-    )
-    query_plan = st.session_state.get("query_plan", "AWAITING QUERY")
+
+def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
     st.markdown(
-        f"""
-        <div class="order-card selected">
-            <div class="order-id">Interpretation preview</div>
-            <div class="order-name">{escaped(interpretation)}</div>
-            <div class="order-detail">No database query is executed in this interface.</div>
+        """
+        <div class="safety-card">
+            <div class="safety-kicker">Verified-answer boundary</div>
+            <div class="safety-title">Meaning is interpreted. Availability comes from inventory.</div>
+            <div class="order-detail">
+                Structured questions become bound database filters. Chemistry questions
+                become validated SMARTS, run through RDKit, then join back to on-hand records.
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.code(query_plan, language=None)
-    return result
+    st.text_area(
+        "Ask about inventory",
+        placeholder=(
+            "Try “Do we have a chiral phosphine ligand for asymmetric reduction?”"
+        ),
+        height=110,
+        key="query_natural_text",
+    )
+    example_cols = st.columns(3)
+    examples = [
+        (
+            "Chiral ligands",
+            "Do we have a chiral phosphine ligand for asymmetric reduction?",
+        ),
+        ("Protic solvents", "Which protic solvents are currently on hand?"),
+        ("Expiry check", "Show reagents expiring within 30 days."),
+    ]
+    for column, (label, question) in zip(example_cols, examples):
+        with column:
+            st.button(
+                label,
+                width="stretch",
+                key=f"query_example_{label.lower().replace(' ', '_')}",
+                on_click=set_natural_query_example,
+                args=(question,),
+            )
+    if st.button(
+        "Run verified search",
+        type="primary",
+        width="stretch",
+        key="run_natural_query",
+    ):
+        st.session_state["query_natural_plan"] = route_natural_language_query(
+            st.session_state.get("query_natural_text", ""),
+            frame,
+        )
+
+    plan = st.session_state.get("query_natural_plan")
+    if not plan:
+        st.markdown(
+            '<div class="empty-state">Ask a question to see its verified execution path.</div>',
+            unsafe_allow_html=True,
+        )
+        return empty_inventory_result(frame)
+
+    st.markdown(
+        f"""
+        <div class="order-card selected">
+            <div class="query-route">{escaped(plan["route_label"])}</div>
+            <div class="order-name">{escaped(plan["interpretation"])}</div>
+            <div class="order-detail">
+                {escaped(plan.get("explanation", "An allowlisted plan is executed against the loaded inventory."))}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if plan["route"] == "chemical":
+        trace = [
+            ("01 · Interpret", "Chemical concept"),
+            ("02 · Validate", "SMARTS pattern"),
+            ("03 · Match", "RDKit structures"),
+            ("04 · Verify", "On-hand inventory join"),
+        ]
+    elif plan["route"] == "structured":
+        trace = [
+            ("01 · Interpret", "Inventory intent"),
+            ("02 · Compile", "Bound SQL filter"),
+            ("03 · Execute", "Inventory database"),
+            ("04 · Return", "Live record state"),
+        ]
+    else:
+        trace = [
+            ("01 · Inspect", "Question received"),
+            ("02 · Stop safely", "No approved translation"),
+        ]
+    trace_html = "".join(
+        f'<div class="trace-step"><strong>{escaped(title)}</strong>{escaped(copy)}</div>'
+        for title, copy in trace
+    )
+    st.markdown(
+        f'<div class="query-trace">{trace_html}</div>',
+        unsafe_allow_html=True,
+    )
+    if plan["query_code"]:
+        code_language = "sql" if plan["route"] == "structured" else None
+        st.code(plan["query_code"], language=code_language)
+    if plan.get("parameters"):
+        st.caption(
+            "Bound parameters / required labels: "
+            + " · ".join(str(value) for value in plan["parameters"])
+        )
+    if plan.get("warning"):
+        st.warning(plan["warning"])
+    if plan["route"] == "chemical" and not plan.get("warning"):
+        st.success(
+            f'{len(plan["results"])} verified on-hand match(es) · '
+            f'{plan.get("skipped", 0)} structure record(s) skipped'
+        )
+    return plan["results"]
 
 
 def render_query_tab() -> None:
@@ -2185,9 +2507,10 @@ def render_query_tab() -> None:
             results = render_basic_query(frame)
         else:
             results = render_natural_language_query(frame)
-    render_inventory_results(results)
+    if mode == "Basic filters" or st.session_state.get("query_natural_plan"):
+        render_inventory_results(results)
     st.markdown(
-        '<p class="quiet-note">Inventory shown here is sample data for interface review.</p>',
+        '<p class="quiet-note">Every answer is derived from the loaded inventory snapshot; the language layer never invents stock state.</p>',
         unsafe_allow_html=True,
     )
 
