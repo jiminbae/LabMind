@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import re
 from io import BytesIO
 from datetime import date, datetime, timedelta
 from typing import Any, MutableMapping
@@ -116,23 +117,26 @@ def apply_theme() -> None:
         """
         <style>
         :root {
-            --canvas: #f5f5f7;
-            --surface: rgba(255, 255, 255, 0.94);
+            --canvas: #f3f6f8;
+            --surface: rgba(255, 255, 255, 0.96);
             --surface-strong: #ffffff;
-            --ink: #1d1d1f;
-            --secondary: #6e6e73;
-            --tertiary: #86868b;
-            --line: rgba(0, 0, 0, 0.075);
-            --line-strong: rgba(0, 0, 0, 0.13);
-            --accent: #0071e3;
-            --accent-hover: #0068d1;
-            --teal: #087f75;
-            --green: #1f7535;
-            --amber: #a95d00;
-            --red: #d70015;
-            --shadow: 0 18px 55px rgba(0, 0, 0, 0.065);
-            --radius-card: 28px;
-            --radius-control: 14px;
+            --ink: #14202b;
+            --secondary: #506170;
+            --tertiary: #697986;
+            --line: #d8e1e8;
+            --line-strong: #b9c6cf;
+            --navy: #17324d;
+            --accent: #1957d2;
+            --accent-hover: #1247b5;
+            --accent-soft: #eaf0ff;
+            --teal: #087a70;
+            --teal-soft: #e7f5f2;
+            --green: #147a4c;
+            --amber: #9b5a00;
+            --red: #c81e3a;
+            --shadow: 0 12px 32px rgba(20, 32, 43, 0.055);
+            --radius-card: 18px;
+            --radius-control: 11px;
             --space-1: 8px;
             --space-2: 12px;
             --space-3: 16px;
@@ -150,14 +154,19 @@ def apply_theme() -> None:
 
         .stApp {
             background:
-                radial-gradient(circle at 50% -180px, #ffffff 0, #f5f5f7 510px),
+                radial-gradient(circle at 12% -80px, #ffffff 0, rgba(255, 255, 255, 0) 440px),
+                radial-gradient(circle at 94% 8%, rgba(25, 87, 210, 0.055), transparent 330px),
                 var(--canvas);
             color: var(--ink);
         }
 
         div.block-container {
-            max-width: 1180px;
-            padding: 1rem 2rem 5rem;
+            max-width: 1120px;
+            padding: .75rem 2rem 4rem;
+        }
+
+        section[data-testid="stMain"] {
+            overflow-x: hidden;
         }
 
         header[data-testid="stHeader"] {
@@ -182,8 +191,8 @@ def apply_theme() -> None:
             border-bottom: 1px solid var(--line);
             display: flex;
             justify-content: space-between;
-            min-height: 54px;
-            padding: 0 2px 12px;
+            min-height: 60px;
+            padding: 0 2px 14px;
         }
 
         .brand {
@@ -194,22 +203,22 @@ def apply_theme() -> None:
 
         .brand-mark {
             align-items: center;
-            background: var(--ink);
-            border-radius: 10px;
+            background: var(--navy);
+            border-radius: 8px;
             color: #fff;
             display: inline-flex;
             font-size: 13px;
             font-weight: 760;
-            height: 34px;
+            height: 38px;
             justify-content: center;
             letter-spacing: -0.02em;
-            width: 34px;
+            width: 38px;
         }
 
         .brand-name {
             color: var(--ink);
-            font-size: 17px;
-            font-weight: 700;
+            font-size: 18px;
+            font-weight: 760;
             line-height: 1.1;
         }
 
@@ -221,124 +230,154 @@ def apply_theme() -> None:
 
         .topbar-note {
             align-items: center;
-            color: var(--secondary);
+            background: var(--teal-soft);
+            border: 1px solid rgba(8, 122, 112, 0.18);
+            border-radius: 999px;
+            color: #075f58;
             display: flex;
             font-size: 12px;
-            font-weight: 560;
+            font-weight: 680;
             gap: 7px;
+            padding: 7px 10px;
         }
 
         .topbar-note-dot {
-            background: var(--green);
+            background: var(--teal);
             border-radius: 999px;
-            box-shadow: 0 0 0 4px rgba(31, 117, 53, 0.10);
+            box-shadow: 0 0 0 4px rgba(8, 122, 112, 0.10);
             height: 7px;
             width: 7px;
         }
 
         .hero {
             align-items: center;
-            display: flex;
-            flex-direction: column;
-            padding: 46px 0 30px;
-            text-align: center;
+            display: grid;
+            gap: clamp(30px, 5vw, 72px);
+            grid-template-columns: minmax(0, 1.1fr) minmax(330px, .9fr);
+            padding: 34px 0 26px;
+            text-align: left;
         }
 
         .hero-kicker {
-            color: var(--accent);
-            font-size: 14px;
-            font-weight: 680;
-            letter-spacing: -0.01em;
-            margin-bottom: 14px;
+            align-items: center;
+            color: var(--teal);
+            display: inline-flex;
+            font-size: 12px;
+            font-weight: 760;
+            gap: 7px;
+            letter-spacing: .08em;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+
+        .hero-kicker::before {
+            background: var(--teal);
+            border-radius: 50%;
+            box-shadow: 0 0 0 4px rgba(8, 122, 112, .10);
+            content: "";
+            height: 7px;
+            width: 7px;
         }
 
         .hero-title {
             color: var(--ink);
-            font-size: clamp(44px, 5.5vw, 68px);
-            font-weight: 720;
-            letter-spacing: -0.06em;
-            line-height: 0.99;
+            font-size: clamp(42px, 4.8vw, 58px);
+            font-weight: 760;
+            letter-spacing: -0.052em;
+            line-height: 1.01;
             margin: 0;
-            max-width: 980px;
+            max-width: 680px;
         }
 
         .hero-title span {
-            color: var(--secondary);
+            color: var(--navy);
         }
 
         .hero-copy {
             color: var(--secondary);
-            font-size: 18px;
+            font-size: 16px;
             letter-spacing: -0.01em;
-            line-height: 1.5;
-            margin: 20px auto 0;
-            max-width: 730px;
+            line-height: 1.6;
+            margin: 16px 0 0;
+            max-width: 620px;
         }
 
         .capability-rail {
             align-items: stretch;
-            background: rgba(255, 255, 255, 0.72);
+            background: var(--surface-strong);
             border: 1px solid var(--line);
-            border-radius: 20px;
+            border-radius: var(--radius-card);
+            box-shadow: var(--shadow);
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            margin-top: 24px;
-            max-width: 840px;
-            padding: 5px;
+            gap: 0;
+            grid-template-columns: 1fr;
+            margin: 0;
+            overflow: hidden;
+            padding: 6px;
             width: 100%;
         }
 
         .capability {
+            align-items: center;
             display: grid;
-            gap: 2px;
-            grid-template-columns: 26px 1fr;
-            padding: 12px 18px;
+            gap: 2px 10px;
+            grid-template-columns: 32px 1fr;
+            padding: 14px 13px;
             text-align: left;
         }
 
         .capability + .capability {
-            border-left: 1px solid var(--line);
+            border-left: 0;
+            border-top: 1px solid var(--line);
         }
 
         .capability > span {
+            align-items: center;
+            background: var(--accent-soft);
+            border-radius: 9px;
             color: var(--accent);
-            font-size: 10px;
-            font-weight: 720;
+            display: flex;
+            font-size: 11px;
+            font-weight: 760;
             grid-row: 1 / 3;
-            letter-spacing: 0.04em;
-            padding-top: 2px;
+            height: 32px;
+            justify-content: center;
+            letter-spacing: 0.03em;
+            padding: 0;
+            width: 32px;
         }
 
         .capability strong {
             color: var(--ink);
-            font-size: 13px;
-            font-weight: 660;
+            font-size: 14px;
+            font-weight: 700;
         }
 
         .capability small {
             color: var(--secondary);
-            font-size: 11px;
-            line-height: 1.35;
+            font-size: 12px;
+            line-height: 1.4;
         }
 
         .section-header {
             margin: 0;
+            padding-top: 2px;
         }
 
         .section-eyebrow {
-            color: var(--secondary);
+            color: var(--teal);
             font-size: 11px;
-            font-weight: 700;
-            letter-spacing: 0.09em;
+            font-weight: 760;
+            letter-spacing: 0.1em;
             margin-bottom: 7px;
             text-transform: uppercase;
         }
 
         .section-title {
             color: var(--ink);
-            font-size: clamp(26px, 2.5vw, 34px);
-            font-weight: 690;
-            letter-spacing: -0.045em;
+            font-size: clamp(28px, 2.7vw, 36px);
+            font-weight: 740;
+            letter-spacing: -0.04em;
             line-height: 1.1;
             margin: 0;
         }
@@ -354,61 +393,87 @@ def apply_theme() -> None:
         .stepper {
             background: transparent;
             display: grid;
-            gap: 8px;
+            gap: 0;
             grid-template-columns: repeat(5, 1fr);
-            margin: 0 0 var(--space-1);
+            margin: 6px 0 var(--space-2);
         }
 
         .step {
+            align-items: center;
             background: transparent;
             border: 0;
             border-radius: 0;
             color: var(--tertiary);
+            display: flex;
+            flex-direction: column;
             font-size: 12px;
-            overflow: hidden;
-            padding: 10px 2px 0;
+            gap: 6px;
+            overflow: visible;
+            padding: 0 4px;
             position: relative;
-            text-align: left;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            text-align: center;
+            white-space: normal;
         }
 
         .step::before {
-            background: rgba(0, 0, 0, 0.10);
-            border-radius: 999px;
+            background: var(--line);
             content: "";
-            height: 3px;
+            height: 1px;
             left: 0;
             position: absolute;
             right: 0;
-            top: 0;
+            top: 12px;
+            z-index: 0;
+        }
+
+        .step:first-child::before {
+            left: 50%;
+        }
+
+        .step:last-child::before {
+            right: 50%;
         }
 
         .step strong {
-            color: inherit;
-            display: inline;
-            font-size: 11px;
-            font-weight: 680;
-            margin-right: 6px;
+            align-items: center;
+            background: var(--canvas);
+            border: 1px solid var(--line-strong);
+            border-radius: 50%;
+            color: var(--secondary);
+            display: flex;
+            font-size: 10px;
+            font-weight: 760;
+            height: 25px;
+            justify-content: center;
+            margin: 0;
+            position: relative;
+            width: 25px;
+            z-index: 1;
         }
 
         .step.active {
             background: transparent;
             color: var(--ink);
-            font-weight: 650;
+            font-weight: 700;
         }
 
-        .step.active::before {
+        .step.active strong {
             background: var(--accent);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(25, 87, 210, .11);
+            color: #fff;
         }
 
         .step.complete {
             background: transparent;
-            color: #515154;
+            color: var(--navy);
+            font-weight: 650;
         }
 
-        .step.complete::before {
-            background: var(--ink);
+        .step.complete strong {
+            background: var(--navy);
+            border-color: var(--navy);
+            color: #fff;
         }
 
         div[data-testid="stTabs"] [data-baseweb="tab-list"] {
@@ -499,26 +564,30 @@ def apply_theme() -> None:
         }
 
         div[data-testid="stFileUploader"] section {
-            background: rgba(245, 245, 247, 0.72);
+            background:
+                linear-gradient(90deg, rgba(8, 122, 112, .025) 1px, transparent 1px),
+                linear-gradient(rgba(8, 122, 112, .025) 1px, transparent 1px),
+                #f8fbfc;
+            background-size: 20px 20px;
             border: 1px dashed var(--line-strong);
             border-radius: var(--radius-control);
-            min-height: 116px;
-            padding: 20px;
+            min-height: 142px;
+            padding: 24px;
             transition: border-color .18s ease, background .18s ease,
                 transform .18s ease;
         }
 
         div[data-testid="stFileUploader"] section:hover {
             background: #fff;
-            border-color: var(--accent);
+            border-color: var(--teal);
             transform: translateY(-1px);
         }
 
         div[data-testid="stFileUploader"] button,
         div.stButton > button,
         div[data-testid="stDownloadButton"] > button {
-            border-radius: 999px;
-            font-weight: 600;
+            border-radius: 10px;
+            font-weight: 680;
             min-height: 44px;
             transition: background-color .18s ease, border-color .18s ease,
                 color .18s ease, box-shadow .18s ease, transform .18s ease;
@@ -622,7 +691,7 @@ def apply_theme() -> None:
         div[data-testid="stNumberInputContainer"],
         div[data-testid="stSelectbox"] [role="group"],
         div[data-testid="stDateInput"] [data-baseweb="input"] {
-            background: #f5f5f7 !important;
+            background: #f6f8fa !important;
             border: 1px solid #d2d2d7 !important;
             border-radius: 12px !important;
             box-shadow: none !important;
@@ -632,7 +701,7 @@ def apply_theme() -> None:
         }
 
         div[data-testid="stTextArea"] textarea {
-            background: #f5f5f7 !important;
+            background: #f6f8fa !important;
             border: 1px solid #d2d2d7 !important;
             border-radius: var(--radius-control) !important;
             box-shadow: none !important;
@@ -743,6 +812,35 @@ def apply_theme() -> None:
             color: inherit !important;
         }
 
+        div[data-testid="stPills"] {
+            overflow: visible;
+        }
+
+        div[data-testid="stPills"] [role="radiogroup"] {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            min-width: 0;
+            overflow: visible;
+        }
+
+        div[data-testid="stPills"] button {
+            background: #fff !important;
+            border: 1px solid var(--line-strong) !important;
+            border-radius: 999px !important;
+            color: var(--secondary) !important;
+            flex: 0 1 auto;
+            min-height: 38px;
+            min-width: 0;
+        }
+
+        div[data-testid="stPills"] button[aria-checked="true"],
+        div[data-testid="stPills"] button[data-selected] {
+            background: var(--accent-soft) !important;
+            border-color: rgba(25, 87, 210, .34) !important;
+            color: var(--accent) !important;
+        }
+
         div[data-testid="stExpander"] summary,
         div[data-testid="stExpander"] summary p,
         div[data-testid="stExpander"] summary span {
@@ -750,24 +848,59 @@ def apply_theme() -> None:
         }
 
         .empty-state {
-            align-items: center;
-            background: rgba(245, 245, 247, 0.72);
+            align-items: flex-start;
+            background: #f8fafb;
             border: 1px solid var(--line);
             border-radius: var(--radius-control);
             color: var(--secondary);
             display: flex;
             justify-content: center;
+            flex-direction: column;
             min-height: 112px;
             padding: var(--space-4);
-            text-align: center;
+            text-align: left;
+        }
+
+        .empty-state-mark {
+            align-items: center;
+            background: var(--accent-soft);
+            border-radius: 10px;
+            color: var(--accent);
+            display: flex;
+            font-size: 12px;
+            font-weight: 760;
+            height: 34px;
+            justify-content: center;
+            margin-bottom: 12px;
+            width: 34px;
+        }
+
+        .empty-state-title {
+            color: var(--ink);
+            font-size: 16px;
+            font-weight: 720;
+            margin-bottom: 4px;
+        }
+
+        .empty-state-copy {
+            color: var(--secondary);
+            font-size: 13px;
+            line-height: 1.5;
+            max-width: 620px;
         }
 
         .upload-hint {
-            color: var(--tertiary);
-            font-size: 12px;
+            align-items: flex-start;
+            background: var(--teal-soft);
+            border: 1px solid rgba(8, 122, 112, .14);
+            border-radius: 10px;
+            color: #285e5a;
+            display: flex;
+            font-size: 13px;
             line-height: 1.5;
-            margin: 12px 2px 0;
-            text-align: center;
+            margin: 12px 0 0;
+            padding: 10px 12px;
+            text-align: left;
         }
 
         .preview-list {
@@ -946,6 +1079,15 @@ def apply_theme() -> None:
             gap: 9px;
             margin: 2px 0 6px;
             padding: 10px 12px;
+        }
+
+        .status-line.neutral {
+            background: var(--accent-soft);
+            color: #244f9b;
+        }
+
+        .status-line.neutral .status-dot {
+            background: var(--accent);
         }
 
         .review-summary {
@@ -1188,7 +1330,7 @@ def apply_theme() -> None:
         .metric-card {
             background: var(--surface-strong);
             border: 1px solid var(--line);
-            border-radius: 16px;
+            border-radius: 12px;
             padding: 16px;
         }
 
@@ -1206,8 +1348,8 @@ def apply_theme() -> None:
         }
 
         .quiet-note {
-            color: var(--tertiary);
-            font-size: 12px;
+            color: var(--secondary);
+            font-size: 13px;
             line-height: 1.5;
             margin: 8px 0;
         }
@@ -1258,14 +1400,12 @@ def apply_theme() -> None:
 
         /* Primary workspace navigation */
         .st-key-primary_view {
-            backdrop-filter: saturate(180%) blur(18px);
-            background: rgba(245, 245, 247, 0.92);
-            margin: 0 0 var(--space-6);
+            background: transparent;
+            margin: 0 0 var(--space-5);
             max-width: none;
-            padding: 6px 0;
-            position: sticky;
-            top: 0;
-            z-index: 30;
+            padding: 0;
+            position: static;
+            z-index: auto;
         }
 
         .st-key-primary_view div[data-testid="stButtonGroup"],
@@ -1277,35 +1417,70 @@ def apply_theme() -> None:
 
         .st-key-primary_view [role="radiogroup"],
         .st-key-primary_view div[data-testid="stSegmentedControl"] > div {
-            backdrop-filter: saturate(180%) blur(18px);
-            background: rgba(232, 232, 237, 0.88);
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            border-radius: 17px;
-            box-shadow: 0 8px 26px rgba(0, 0, 0, 0.10);
+            background: transparent;
+            border: 0;
+            border-bottom: 1px solid var(--line);
+            border-radius: 0;
+            box-shadow: none;
             display: flex;
             margin: 0 auto;
-            max-width: 680px;
+            max-width: 640px;
             min-width: 0;
-            padding: 5px;
+            padding: 0;
+            width: 100%;
+        }
+
+        .st-key-primary_view div[data-testid="stButtonGroup"] [role="radiogroup"] {
+            background: transparent !important;
+            border: 0 !important;
+            border-bottom: 1px solid var(--line) !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            max-width: 640px;
+            padding: 0 !important;
             width: 100%;
         }
 
         .st-key-primary_view button[data-variant="segmented_control"],
         .st-key-primary_view div[data-testid="stSegmentedControl"] button {
             border: 1px solid transparent !important;
+            border-bottom: 3px solid transparent !important;
+            border-radius: 0 !important;
+            background: transparent !important;
             flex: 1 1 50%;
             font-size: 14px;
-            font-weight: 640;
-            height: 48px !important;
-            min-height: 48px !important;
+            font-weight: 680;
+            height: 46px !important;
+            min-height: 46px !important;
             min-width: 0;
+        }
+
+        .st-key-primary_view div[data-testid="stButtonGroup"]
+        button[data-variant="segmented_control"] {
+            background: transparent !important;
+            border: 0 !important;
+            border-bottom: 3px solid transparent !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
         }
 
         .st-key-primary_view button[data-variant="segmented_control"][data-selected],
         .st-key-primary_view button[data-variant="segmented_control"][aria-checked="true"],
         .st-key-primary_view div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
             border-color: transparent !important;
-            box-shadow: 0 2px 7px rgba(0, 0, 0, 0.13) !important;
+            border-bottom-color: var(--accent) !important;
+            box-shadow: none !important;
+            color: var(--accent) !important;
+        }
+
+        .st-key-primary_view div[data-testid="stButtonGroup"]
+        button[data-variant="segmented_control"][data-selected],
+        .st-key-primary_view div[data-testid="stButtonGroup"]
+        button[data-variant="segmented_control"][aria-checked="true"] {
+            background: transparent !important;
+            border-bottom-color: var(--accent) !important;
+            box-shadow: none !important;
+            color: var(--accent) !important;
         }
 
         .st-key-workspace_shell {
@@ -1323,7 +1498,7 @@ def apply_theme() -> None:
 
         .st-key-intake_workspace .st-key-upload_panel {
             position: sticky;
-            top: 88px;
+            top: 16px;
         }
 
         .st-key-query_mode {
@@ -1343,6 +1518,7 @@ def apply_theme() -> None:
             font-weight: 620;
             min-height: 44px !important;
             min-width: 0;
+            white-space: normal !important;
         }
 
         .st-key-query_mode button[data-variant="segmented_control"][data-selected],
@@ -1374,8 +1550,8 @@ def apply_theme() -> None:
         }
 
         .query-ready {
-            align-items: center;
-            background: rgba(245, 245, 247, 0.78);
+            align-items: flex-start;
+            background: #f8fafb;
             border: 1px solid var(--line);
             border-radius: var(--radius-control);
             color: var(--secondary);
@@ -1384,7 +1560,7 @@ def apply_theme() -> None:
             justify-content: center;
             min-height: 88px;
             padding: var(--space-4);
-            text-align: center;
+            text-align: left;
         }
 
         .metric-row {
@@ -1477,11 +1653,13 @@ def apply_theme() -> None:
             }
 
             .hero {
-                padding: 34px 0 24px;
+                gap: 20px;
+                grid-template-columns: 1fr;
+                padding: 26px 0 20px;
             }
 
             .hero-title {
-                font-size: clamp(36px, 10.3vw, 44px);
+                font-size: clamp(38px, 8vw, 48px);
             }
 
             .hero-copy {
@@ -1490,41 +1668,35 @@ def apply_theme() -> None:
             }
 
             .capability-rail {
-                background: transparent;
-                border: 0;
-                border-radius: 0;
-                display: flex;
-                gap: var(--space-1);
-                margin-top: var(--space-4);
-                overflow-x: auto;
-                padding: 2px 2px 8px;
-                scroll-snap-type: x proximity;
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                padding: 4px;
             }
 
             .capability {
-                background: rgba(255, 255, 255, 0.84);
-                border: 1px solid var(--line) !important;
-                border-radius: 16px;
-                flex: 0 0 220px;
-                padding: 13px 15px;
-                scroll-snap-align: start;
+                border: 0;
+                padding: 12px;
+            }
+
+            .capability + .capability {
+                border-left: 1px solid var(--line);
+                border-top: 0;
             }
 
             .st-key-primary_view {
-                margin-bottom: var(--space-6);
-                top: 8px;
+                margin-bottom: var(--space-5);
             }
 
             .st-key-primary_view button[data-variant="segmented_control"],
             .st-key-primary_view div[data-testid="stSegmentedControl"] button {
                 font-size: 13px;
-                height: 48px !important;
-                min-height: 48px !important;
+                height: 44px !important;
+                min-height: 44px !important;
             }
 
             .stepper {
                 display: grid;
-                gap: 8px;
+                gap: 0;
                 grid-template-columns: repeat(5, minmax(0, 1fr));
                 margin-top: 8px;
                 overflow: visible;
@@ -1532,7 +1704,7 @@ def apply_theme() -> None:
             }
 
             .step {
-                font-size: 0;
+                font-size: 10px;
                 min-width: 0;
                 padding-left: 0;
                 padding-right: 0;
@@ -1584,21 +1756,67 @@ def apply_theme() -> None:
         }
 
         @media (max-width: 460px) {
-            .topbar-note {
+            div.block-container {
+                padding-left: .85rem;
+                padding-right: .85rem;
+            }
+
+            .brand-subtitle {
                 display: none;
             }
 
+            .topbar-note {
+                display: flex;
+                font-size: 11px;
+                padding: 6px 8px;
+            }
+
             .capability-rail {
-                display: none;
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
             }
 
             .hero {
                 align-items: flex-start;
+                gap: 16px;
+                padding: 22px 0 18px;
                 text-align: left;
             }
 
+            .hero-title {
+                font-size: 32px;
+                line-height: 1.03;
+            }
+
+            .hero-title br {
+                display: none;
+            }
+
             .hero-copy {
+                font-size: 15px;
                 margin-left: 0;
+            }
+
+            .capability {
+                display: flex;
+                gap: 6px;
+                padding: 8px 6px;
+            }
+
+            .capability > span {
+                flex: 0 0 24px;
+                font-size: 9px;
+                height: 24px;
+                width: 24px;
+            }
+
+            .capability strong {
+                font-size: 10px;
+                line-height: 1.2;
+            }
+
+            .capability small {
+                display: none;
             }
 
             .section-title {
@@ -1621,12 +1839,44 @@ def apply_theme() -> None:
 
             .st-key-primary_view button[data-variant="segmented_control"],
             .st-key-primary_view div[data-testid="stSegmentedControl"] button {
+                font-size: 12.5px;
                 padding-left: 8px !important;
                 padding-right: 8px !important;
             }
 
+            .st-key-query_mode button[data-variant="segmented_control"],
+            .st-key-query_mode div[data-testid="stSegmentedControl"] button {
+                font-size: 12px;
+                line-height: 1.2;
+                padding-left: 6px !important;
+                padding-right: 6px !important;
+            }
+
+            div[data-testid="stPills"] button {
+                flex: 1 1 120px;
+                justify-content: center;
+            }
+
+            .step {
+                font-size: 9px;
+                line-height: 1.2;
+            }
+
             .metric-row {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .metric-card {
+                padding: 12px 10px;
+            }
+
+            .metric-value {
+                font-size: 22px;
+            }
+
+            .metric-label {
+                font-size: 10px;
             }
         }
 
@@ -2145,7 +2395,7 @@ def interpret_sample_query(
 def render_topbar() -> None:
     st.markdown(
         """
-        <div class="topbar">
+        <header class="topbar">
             <div class="brand">
                 <div class="brand-mark">LM</div>
                 <div>
@@ -2155,9 +2405,9 @@ def render_topbar() -> None:
             </div>
             <div class="topbar-note">
                 <span class="topbar-note-dot"></span>
-                Safety-first workflow
+                Safety rules active
             </div>
-        </div>
+        </header>
         """,
         unsafe_allow_html=True,
     )
@@ -2166,31 +2416,33 @@ def render_topbar() -> None:
 def render_hero() -> None:
     st.markdown(
         """
-        <section class="hero">
-            <div class="hero-kicker">Verified lab inventory</div>
-            <h1 class="hero-title">
-                Know what’s in the lab.<br>
-                <span>And what it can do.</span>
-            </h1>
-            <p class="hero-copy">
-                Receive reagents with a reviewable trail, classify their chemical
-                function, and ask inventory questions with evidence behind every answer.
-            </p>
+        <section class="hero" aria-labelledby="labmind-hero-title">
+            <div class="hero-copy-block">
+                <div class="hero-kicker">Verified lab inventory</div>
+                <h1 class="hero-title" id="labmind-hero-title">
+                    Know what&rsquo;s in the lab.<br>
+                    <span>Know why it belongs.</span>
+                </h1>
+                <p class="hero-copy">
+                    Capture labels, classify chemistry, and search inventory with
+                    evidence behind every answer.
+                </p>
+            </div>
             <div class="capability-rail" aria-label="LabMind capabilities">
                 <div class="capability">
                     <span>01</span>
-                    <strong>Label to order</strong>
-                    <small>Five fields, verified</small>
+                    <strong>Capture the label</strong>
+                    <small>Extracted fields stay editable</small>
                 </div>
                 <div class="capability">
                     <span>02</span>
-                    <strong>Chemistry to storage</strong>
-                    <small>AI labels, hard safety rules</small>
+                    <strong>Apply safety rules</strong>
+                    <small>Storage decisions stay deterministic</small>
                 </div>
                 <div class="capability">
                     <span>03</span>
-                    <strong>Question to evidence</strong>
-                    <small>Structure and stock checked</small>
+                    <strong>Verify inventory</strong>
+                    <small>Structure and stock are both checked</small>
                 </div>
             </div>
         </section>
@@ -2200,16 +2452,19 @@ def render_hero() -> None:
 
 
 def render_section_header(eyebrow: str, title: str, copy: str) -> None:
-    st.markdown(
-        f"""
-        <div class="section-header">
-            <div class="section-eyebrow">{escaped(eyebrow)}</div>
-            <h2 class="section-title">{escaped(title)}</h2>
-            <p class="section-copy">{escaped(copy)}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    section_id = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+    with st.container(key=f"section_header_{section_id}"):
+        st.markdown(
+            f"""
+            <div class="section-header">
+                <div class="section-eyebrow">{escaped(eyebrow)}</div>
+                <div class="section-title" id="{escaped(section_id)}"
+                    role="heading" aria-level="2">{escaped(title)}</div>
+                <p class="section-copy">{escaped(copy)}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 def render_stepper() -> None:
@@ -2234,10 +2489,16 @@ def render_stepper() -> None:
     items = []
     for index, label in enumerate(labels, start=1):
         state = "complete" if index < active_step else "active" if index == active_step else ""
+        current = ' aria-current="step"' if index == active_step else ""
         items.append(
-            f'<div class="step {state}"><strong>0{index}</strong>{escaped(label)}</div>'
+            f'<div class="step {state}" role="listitem"{current}>'
+            f'<strong>0{index}</strong><span>{escaped(label)}</span></div>'
         )
-    st.markdown(f'<div class="stepper">{"".join(items)}</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="stepper" role="list" aria-label="Registration progress">'
+        f'{"".join(items)}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def initialize_extraction_state(contents: bytes, filename: str) -> None:
@@ -2334,7 +2595,7 @@ def render_upload_step(*, compact: bool = False) -> bytes | None:
     )
     if uploaded_file is None:
         st.markdown(
-            '<p class="upload-hint">PNG, JPG, or WebP · a straight-on photo works best.</p>',
+            '<p class="upload-hint" role="note">Use a straight-on, glare-free photo so every extracted field is easy to review.</p>',
             unsafe_allow_html=True,
         )
         return None
@@ -3122,15 +3383,45 @@ def render_inventory_metrics(frame: pd.DataFrame) -> None:
     )
 
 
-def render_inventory_results(frame: pd.DataFrame) -> None:
-    render_inventory_metrics(frame)
+def set_primary_view(view: str) -> None:
+    st.session_state["primary_view"] = view
+
+
+def render_inventory_results(
+    frame: pd.DataFrame,
+    *,
+    inventory_is_empty: bool = False,
+) -> None:
     if frame.empty:
+        if inventory_is_empty:
+            title = "Your inventory is ready for its first record"
+            copy = (
+                "Register a reagent label to create a reviewable record, then return "
+                "here to search it."
+            )
+        else:
+            title = "No records match this search"
+            copy = "Broaden the query or clear one or more filters and try again."
         st.markdown(
-            '<div class="empty-state">No inventory records match these filters.</div>',
+            f"""
+            <div class="empty-state" role="status">
+                <div class="empty-state-mark">00</div>
+                <div class="empty-state-title">{escaped(title)}</div>
+                <div class="empty-state-copy">{escaped(copy)}</div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
+        if inventory_is_empty:
+            st.button(
+                "Register a reagent",
+                key="empty_inventory_to_intake",
+                on_click=set_primary_view,
+                args=("Reagent intake",),
+            )
         return
 
+    render_inventory_metrics(frame)
     display_frame = frame.copy()
     display_frame["Expiry date"] = pd.to_datetime(display_frame["Expiry date"])
     display_columns = [
@@ -3244,6 +3535,13 @@ def render_basic_query(frame: pd.DataFrame) -> pd.DataFrame:
             width="stretch",
             key="clear_basic_query",
             on_click=clear_query_state,
+            disabled=not bool(
+                search.strip()
+                or manufacturer != "All manufacturers"
+                or storage != "All locations"
+                or expiry != "All expiry states"
+                or minimum > 0
+            ),
         )
     if search_clicked or "query_results" not in st.session_state:
         st.session_state["query_results"] = filter_sample_inventory(
@@ -3269,7 +3567,7 @@ def apply_natural_query_example(examples: dict[str, str]) -> None:
 
 
 def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
-    st.text_area(
+    query_text = st.text_area(
         "Ask about inventory",
         placeholder=(
             "Try “Do we have a chiral phosphine ligand for asymmetric reduction?”"
@@ -3298,6 +3596,7 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
         type="primary",
         width="stretch",
         key="run_natural_query",
+        disabled=not query_text.strip(),
     ):
         st.session_state["query_natural_plan"] = route_natural_language_query(
             st.session_state.get("query_natural_text", ""),
@@ -3376,10 +3675,22 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
     if plan.get("warning"):
         st.warning(plan["warning"])
     if plan["route"] == "chemical" and not plan.get("warning"):
-        st.success(
-            f'{len(plan["results"])} verified on-hand match(es) · '
-            f'{plan.get("skipped", 0)} structure record(s) skipped'
+        match_count = len(plan["results"])
+        skipped_count = int(plan.get("skipped", 0))
+        match_label = "match" if match_count == 1 else "matches"
+        skipped_label = "record" if skipped_count == 1 else "records"
+        message = (
+            f"{match_count} verified on-hand {match_label} · "
+            f"{skipped_count} structure {skipped_label} skipped"
         )
+        if match_count:
+            st.success(message)
+        else:
+            st.markdown(
+                f'<div class="status-line neutral" role="status">'
+                f'<span class="status-dot"></span>{escaped(message)}</div>',
+                unsafe_allow_html=True,
+            )
     return plan["results"]
 
 
@@ -3405,7 +3716,7 @@ def render_query_tab() -> None:
         else:
             results = render_natural_language_query(frame)
     if mode == "Basic filters" or st.session_state.get("query_natural_plan"):
-        render_inventory_results(results)
+        render_inventory_results(results, inventory_is_empty=frame.empty)
     st.markdown(
         '<p class="quiet-note">Every answer is derived from the loaded inventory records; the language layer never invents stock state.</p>',
         unsafe_allow_html=True,
@@ -3414,8 +3725,8 @@ def render_query_tab() -> None:
 
 def main() -> None:
     st.set_page_config(
-        page_title="LabMind",
-        page_icon="L",
+        page_title="LabMind — Verified Reagent Intelligence",
+        page_icon="🧪",
         layout="wide",
         initial_sidebar_state="collapsed",
     )
