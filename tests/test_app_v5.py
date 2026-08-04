@@ -415,6 +415,72 @@ render_registration_workspace()
         self.assertEqual(state["add_extraction_notice"]["status"], "manual")
         self.assertIn("manually", state["add_extraction_notice"]["message"].lower())
 
+    def test_partial_reextraction_preserves_manual_and_nonvision_values(self) -> None:
+        app = AppTest.from_string(
+            """
+from datetime import date
+import streamlit as st
+import app_v5
+from backend.vision_service import LabelExtractionResult
+
+st.session_state["add_field_cas_number"] = "64-17-5"
+st.session_state["add_field_manufacturer"] = "Reviewed manufacturer"
+st.session_state["add_field_quantity"] = 25.0
+st.session_state["add_field_expiry_date"] = date(2027, 1, 2)
+
+original_extract_label_fields = app_v5.extract_label_fields
+app_v5.extract_label_fields = lambda *args, **kwargs: LabelExtractionResult(
+    status="partial",
+    fields={
+        "chemical_name": "Ethanol",
+        "cas_number": "",
+        "specification": "",
+        "batch_number": "LOT-NEW",
+        "manufacturer": "",
+        "confidence": 81,
+    },
+    message="Some label fields were extracted.",
+    provider="gemini",
+)
+try:
+    app_v5.initialize_extraction_state(b"image", "label.png")
+finally:
+    app_v5.extract_label_fields = original_extract_label_fields
+st.write("complete")
+"""
+        ).run(timeout=20)
+
+        self.assertEqual(len(app.exception), 0)
+        state = app.session_state.filtered_state
+        self.assertEqual(state["add_field_chemical_name"], "Ethanol")
+        self.assertEqual(state["add_field_cas_number"], "64-17-5")
+        self.assertEqual(state["add_field_manufacturer"], "Reviewed manufacturer")
+        self.assertEqual(state["add_field_batch_number"], "LOT-NEW")
+        self.assertEqual(state["add_field_quantity"], 25.0)
+        self.assertEqual(state["add_field_expiry_date"], date(2027, 1, 2))
+
+    def test_partial_extraction_notice_is_a_warning(self) -> None:
+        app = AppTest.from_string(
+            """
+import streamlit as st
+from app_v5 import get_sample_extraction_result, render_extraction_step
+
+for field, value in get_sample_extraction_result().items():
+    st.session_state[f"add_field_{field}"] = value
+st.session_state["add_extraction_complete"] = True
+st.session_state["add_extraction_notice"] = {
+    "status": "partial",
+    "message": "Some label fields were extracted.",
+}
+render_extraction_step()
+"""
+        ).run(timeout=20)
+
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(len(app.warning), 1)
+        self.assertEqual(len(app.success), 0)
+        self.assertIn("Some label fields", app.warning[0].value)
+
     def test_main_workspace_navigation_renders_one_view_at_a_time(self) -> None:
         app = AppTest.from_file("app.py").run(timeout=20)
         self.assertEqual(len(app.exception), 0)

@@ -1,4 +1,4 @@
-"""Safe, opt-in Gemini extraction for the four reagent-label fields.
+"""Safe, opt-in Gemini extraction for five reagent-label fields.
 
 No sample values are returned on failure.  The caller receives a structured
 manual-entry state instead, so a missing key or provider outage can never turn
@@ -8,7 +8,6 @@ into a plausible-looking reagent record.
 from __future__ import annotations
 
 import json
-import mimetypes
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
@@ -16,14 +15,30 @@ from pydantic import BaseModel, Field
 
 from .cas_validator import validate_cas_details
 from .provider_config import DEFAULT_ENV_PATH, resolve_gemini_config
+from .provider_errors import provider_failure_message
 
 
 SUPPORTED_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
+MIME_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+}
+FIELD_LABELS = {
+    "chemical_name": "chemical name",
+    "cas_number": "CAS number",
+    "specification": "specification",
+    "batch_number": "batch or lot number",
+    "manufacturer": "manufacturer",
+}
 
 LABEL_PROMPT = """You extract only visible printed information from a laboratory
 reagent label. Return JSON for exactly these fields:
 
+- chemical_name: the visible chemical or product name exactly as printed,
+  including salt, hydrate, and stereochemical notation, or null when absent.
 - cas_number: the CAS Registry Number, including hyphens, or null when absent.
 - specification: a visible grade, assay, concentration, or specification, or null.
 - batch_number: a visible lot or batch number, or null.
@@ -31,8 +46,9 @@ reagent label. Return JSON for exactly these fields:
 - confidence: a number from 0 to 1 that reflects the overall clarity of the
   returned fields.
 
-Do not infer chemistry, hazards, storage, a catalog number, quantity, an expiry
-date, or a chemical name. Do not guess a field. Preserve printed text where
+Do not infer chemistry, hazards, storage, a catalog number, quantity, or an
+expiry date. Never derive or normalize a missing name from the CAS number,
+manufacturer, or another field. Do not guess. Preserve printed text where
 possible. A local CAS checksum check will validate the result after extraction.
 """
 
@@ -40,11 +56,26 @@ possible. A local CAS checksum check will validate the result after extraction.
 class LabelExtraction(BaseModel):
     """Gemini structured-output schema for the current intake UI."""
 
-    cas_number: str | None = None
-    specification: str | None = None
-    batch_number: str | None = None
-    manufacturer: str | None = None
-    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    chemical_name: str | None = Field(
+        description="Chemical or product name visibly printed on the label, unchanged."
+    )
+    cas_number: str | None = Field(
+        description="CAS Registry Number visibly printed on the label, including hyphens."
+    )
+    specification: str | None = Field(
+        description="Visible grade, assay, concentration, or specification."
+    )
+    batch_number: str | None = Field(
+        description="Visible lot or batch identifier."
+    )
+    manufacturer: str | None = Field(
+        description="Manufacturer or brand visibly printed on the label."
+    )
+    confidence: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Overall confidence based only on the clarity of visible fields.",
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,19 +91,33 @@ class LabelExtractionResult:
         return asdict(self)
 
 
-def _manual_result(message: str) -> LabelExtractionResult:
+def _blank_fields() -> dict[str, Any]:
+    return {**{field: "" for field in FIELD_LABELS}, "confidence": 0}
+
+
+def _manual_result(
+    message: str,
+    *,
+    provider: str | None = None,
+) -> LabelExtractionResult:
     return LabelExtractionResult(
         status="manual",
-        fields={"confidence": 0},
+        fields=_blank_fields(),
         message=message,
+        provider=provider,
     )
 
 
-def _failed_result(message: str) -> LabelExtractionResult:
+def _failed_result(
+    message: str,
+    *,
+    provider: str | None = None,
+) -> LabelExtractionResult:
     return LabelExtractionResult(
         status="failed",
-        fields={"confidence": 0},
+        fields=_blank_fields(),
         message=message,
+        provider=provider,
     )
 
 
@@ -86,9 +131,19 @@ def _validate_upload(image_bytes: bytes, filename: str) -> tuple[str, str]:
     if extension not in SUPPORTED_SUFFIXES:
         formats = ", ".join(sorted(SUPPORTED_SUFFIXES))
         raise ValueError(f"Unsupported image format. Use one of: {formats}.")
-    mime_type = mimetypes.guess_type(filename)[0]
-    if not mime_type or not mime_type.startswith("image/"):
-        raise ValueError("The uploaded file must have an image MIME type.")
+    signatures_match = {
+        ".png": image_bytes.startswith(b"\x89PNG\r\n\x1a\n"),
+        ".jpg": image_bytes.startswith(b"\xff\xd8\xff"),
+        ".jpeg": image_bytes.startswith(b"\xff\xd8\xff"),
+        ".webp": (
+            len(image_bytes) >= 12
+            and image_bytes.startswith(b"RIFF")
+            and image_bytes[8:12] == b"WEBP"
+        ),
+    }
+    if not signatures_match[extension]:
+        raise ValueError("The file contents do not match the selected image format.")
+    mime_type = MIME_TYPES[extension]
     return extension, mime_type
 
 
@@ -123,6 +178,8 @@ def _to_result(extraction: LabelExtraction) -> LabelExtractionResult:
     cas_number = _clean_text(extraction.cas_number)
     cas_check = validate_cas_details(cas_number)
     fields: dict[str, Any] = {
+        "chemical_name": _clean_text(extraction.chemical_name) or "",
+        "cas_number": "",
         "specification": _clean_text(extraction.specification) or "",
         "batch_number": _clean_text(extraction.batch_number) or "",
         "manufacturer": _clean_text(extraction.manufacturer) or "",
@@ -145,15 +202,26 @@ def _to_result(extraction: LabelExtraction) -> LabelExtractionResult:
     else:
         fields["cas_number"] = ""
 
-    recognized = any(
-        fields[field] for field in ("cas_number", "specification", "batch_number", "manufacturer")
-    )
+    recognized = any(fields[field] for field in FIELD_LABELS)
     if not recognized:
         return _manual_result(
-            "No supported label fields were visible. Enter the details manually."
+            "No supported label fields were visible. Enter the details manually.",
+            provider="gemini",
+        )
+
+    missing = [label for field, label in FIELD_LABELS.items() if not fields[field]]
+    if missing:
+        return LabelExtractionResult(
+            status="partial",
+            fields=fields,
+            message=(
+                "Some label fields were extracted. Review them; the image did not "
+                f"provide {', '.join(missing)}."
+            ),
+            provider="gemini",
         )
     return LabelExtractionResult(
-        status="success" if fields["cas_number"] else "partial",
+        status="success",
         fields=fields,
         message="Label fields are ready for review. Verify every value before continuing.",
         provider="gemini",
@@ -168,7 +236,7 @@ def extract_label_fields(
     env_path=DEFAULT_ENV_PATH,
     client: Any | None = None,
 ) -> LabelExtractionResult:
-    """Extract the four allowed fields, or return a safe manual-entry outcome.
+    """Extract the five allowed fields, or return a safe manual-entry outcome.
 
     ``client`` is injectable for deterministic tests.  The public API catches
     expected provider errors so the Streamlit app can continue in manual mode.
@@ -228,6 +296,10 @@ def extract_label_fields(
         return _to_result(_response_to_model(response))
     except Exception as error:  # The UI must not leak raw provider failures.
         return _failed_result(
-            "Vision extraction could not complete. Enter the label fields manually "
-            f"and retry later ({type(error).__name__})."
+            provider_failure_message(
+                error,
+                operation="Vision extraction",
+                fallback="Enter the label fields manually and retry later.",
+            ),
+            provider="gemini",
         )

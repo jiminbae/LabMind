@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from .classification_service import CHEMICAL_LABEL_OPTIONS
 from .provider_config import DEFAULT_ENV_PATH, resolve_gemini_config
+from .provider_errors import provider_failure_message
 from .safety_rules import STORAGE_CONSTRAINT_OPTIONS
 
 
@@ -150,8 +151,11 @@ def translate_chemical_question(
         return QueryTranslationResult(
             "failed",
             None,
-            "Chemistry translation could not complete; no inventory answer was generated "
-            f"({type(error).__name__}).",
+            provider_failure_message(
+                error,
+                operation="Chemistry translation",
+                fallback="No inventory answer was generated.",
+            ),
         )
 
     patterns = [

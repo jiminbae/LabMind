@@ -38,13 +38,18 @@ an API key is unavailable or a request fails.
    `GEMINI_API_KEY`.
 3. Restart Streamlit.
 
-Gemini can extract only CAS number, specification, batch/lot number, and
-manufacturer from the image. It can also suggest allowlisted chemistry labels
-and storage constraints for a valid CAS, or translate an unfamiliar chemistry
-question into a SMARTS *search plan*. Both outputs remain editable and must be
-reviewed. RDKit validates and executes the SMARTS plan against the real
-inventory; the model never reports stock availability. The safety rule
-engine—not the model—chooses the recommended storage location.
+Use `GEMINI_API_KEY` as the single key setting. If a legacy `GOOGLE_API_KEY`
+secret is also present with a different value, remove it; the app rejects that
+ambiguous configuration without displaying either secret.
+
+Gemini can extract the printed chemical name, CAS number, specification,
+batch/lot number, and manufacturer from the image. It can also suggest
+allowlisted chemistry labels and storage constraints for a valid CAS, or
+translate an unfamiliar chemistry question into a SMARTS *search plan*. Both
+outputs remain editable and must be reviewed. RDKit validates and executes the
+SMARTS plan against the real inventory; the model never reports stock
+availability. The safety rule engine—not the model—chooses the recommended
+storage location.
 
 ## Order data
 

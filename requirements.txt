@@ -2,4 +2,4 @@ streamlit>=1.50
 pandas>=2.0,<4
 rdkit>=2024.3
 pydantic>=2.0,<3
-google-genai>=1.0,<2
+google-genai==2.16.0

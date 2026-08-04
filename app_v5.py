@@ -2180,7 +2180,7 @@ def render_hero() -> None:
                 <div class="capability">
                     <span>01</span>
                     <strong>Label to order</strong>
-                    <small>Four fields, verified</small>
+                    <small>Five fields, verified</small>
                 </div>
                 <div class="capability">
                     <span>02</span>
@@ -2248,10 +2248,13 @@ def initialize_extraction_state(contents: bytes, filename: str) -> None:
         filename,
         environ=streamlit_provider_environment(),
     )
-    fields = get_sample_extraction_result()
-    fields.update(result.fields)
-    for field, value in fields.items():
-        st.session_state[f"add_field_{field}"] = value
+    defaults = get_sample_extraction_result()
+    for field, value in defaults.items():
+        st.session_state.setdefault(f"add_field_{field}", value)
+    for field, value in result.fields.items():
+        state_key = f"add_field_{field}"
+        if value not in ("", None) or state_key not in st.session_state:
+            st.session_state[state_key] = value
     st.session_state["add_receipt_key"] = st.session_state.get(
         "add_receipt_key"
     ) or str(uuid4())
@@ -2396,6 +2399,8 @@ def render_extraction_step() -> None:
             st.warning(message)
         elif extraction_notice.get("status") == "manual":
             st.info(message)
+        elif extraction_notice.get("status") == "partial":
+            st.warning(message)
         else:
             st.success(message)
     st.markdown(
@@ -3071,16 +3076,17 @@ def render_add_tab() -> None:
                 with st.container(border=True, key="review_placeholder"):
                     render_section_header(
                         "Ready to review",
-                        "Extract four label fields",
+                        "Extract five label fields",
                         "The extracted values stay editable before any inventory decision is prepared.",
                     )
                     st.markdown(
                         """
                         <div class="preview-list">
-                            <div><span>01</span><strong>CAS number</strong></div>
-                            <div><span>02</span><strong>Specification</strong></div>
-                            <div><span>03</span><strong>Batch or lot</strong></div>
-                            <div><span>04</span><strong>Manufacturer</strong></div>
+                            <div><span>01</span><strong>Chemical name</strong></div>
+                            <div><span>02</span><strong>CAS number</strong></div>
+                            <div><span>03</span><strong>Specification</strong></div>
+                            <div><span>04</span><strong>Batch or lot</strong></div>
+                            <div><span>05</span><strong>Manufacturer</strong></div>
                         </div>
                         """,
                         unsafe_allow_html=True,

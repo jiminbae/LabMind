@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from .cas_validator import validate_cas_details
 from .classification_cache import get_cas_classification, upsert_cas_classification
 from .provider_config import DEFAULT_ENV_PATH, resolve_gemini_config
+from .provider_errors import provider_failure_message
 from .safety_rules import STORAGE_CONSTRAINT_OPTIONS
 
 
@@ -207,8 +208,11 @@ def classify_cas_with_gemini(
     except Exception as error:  # Provider details must not crash or leak to the UI.
         return _manual_result(
             normalized_cas,
-            "AI classification could not complete. Review labels and constraints manually "
-            f"({type(error).__name__}).",
+            provider_failure_message(
+                error,
+                operation="AI classification",
+                fallback="Review labels and constraints manually.",
+            ),
         )
 
     labels, rejected_labels = _validated_values(parsed.labels, CHEMICAL_LABEL_OPTIONS)

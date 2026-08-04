@@ -89,13 +89,18 @@ def resolve_gemini_config(
     if provider not in {"gemini", "google"}:
         raise ValueError("LABMIND_PROVIDER must be 'gemini' when live mode is used.")
 
+    gemini_key = values.get("GEMINI_API_KEY", "").strip()
+    google_key = values.get("GOOGLE_API_KEY", "").strip()
+    if mode == "live" and gemini_key and google_key and gemini_key != google_key:
+        raise ValueError(
+            "GEMINI_API_KEY and GOOGLE_API_KEY contain different values. "
+            "Remove the old GOOGLE_API_KEY and keep GEMINI_API_KEY only."
+        )
+    model = values.get("GEMINI_MODEL", "").strip() or "gemini-3.6-flash"
+
     return GeminiProviderConfig(
         mode=mode,
         provider="gemini",
-        api_key=(
-            values.get("GOOGLE_API_KEY", "").strip()
-            or values.get("GEMINI_API_KEY", "").strip()
-            or None
-        ),
-        model=(values.get("GEMINI_MODEL") or "gemini-3.5-flash").strip(),
+        api_key=gemini_key or google_key or None,
+        model=model,
     )
