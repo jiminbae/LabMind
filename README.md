@@ -68,6 +68,23 @@ truth for a real laboratory. Production deployment requires an externally
 managed database and the relevant credentials; those are intentionally not
 committed to this repository.
 
+
+### Render
+
+The repository includes a root-level `render.yaml` Blueprint for a free Render
+web service. It installs `requirements.txt`, binds Streamlit to Render's `PORT`,
+and exposes Streamlit's health endpoint. The initial service uses manual AI mode
+so it can deploy without committing a provider key.
+
+To enable Gemini after deployment, add `GEMINI_API_KEY` in the Render service's
+Environment page and change `LABMIND_VISION_MODE` to `live`. Never commit the
+key or a local `.streamlit/secrets.toml` file.
+
+Free Render services use an ephemeral filesystem. For persistent SQLite data,
+upgrade to a paid service, attach a disk at `/var/data`, and set
+`LABMIND_DB_PATH=/var/data/inventory.db`. For multi-instance production use,
+replace SQLite with an externally managed database.
+
 Run the verification suite with:
 
 ```powershell
