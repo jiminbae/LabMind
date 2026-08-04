@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from streamlit.testing.v1 import AppTest
 
+import app_v5
 from app_v5 import (
     ADD_STATE_KEYS,
     Chem,
@@ -58,6 +59,22 @@ class AppV5HelpersTest(unittest.TestCase):
 
     def database_argument(self) -> str:
         return str(self.database_path)
+
+    def test_streamlit_provider_environment_reads_render_environment(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "LABMIND_VISION_MODE": "live",
+                "LABMIND_PROVIDER": "gemini",
+                "GEMINI_API_KEY": "render-secret",
+            },
+            clear=False,
+        ):
+            environment = app_v5.streamlit_provider_environment()
+
+        self.assertEqual(environment["LABMIND_VISION_MODE"], "live")
+        self.assertEqual(environment["LABMIND_PROVIDER"], "gemini")
+        self.assertEqual(environment["GEMINI_API_KEY"], "render-secret")
 
     def reagent_payload(
         self,

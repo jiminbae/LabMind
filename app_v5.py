@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import os
 import re
 from io import BytesIO
 from datetime import date, datetime, timedelta
@@ -1928,9 +1929,13 @@ def get_sample_extraction_result() -> dict[str, Any]:
 
 
 def streamlit_provider_environment() -> dict[str, str]:
-    """Read provider settings from Streamlit secrets without ever rendering them."""
+    """Read provider settings from the process and Streamlit secrets safely."""
 
-    environment: dict[str, str] = {}
+    environment = {
+        name: value
+        for name in PROVIDER_ENV_NAMES
+        if isinstance((value := os.environ.get(name)), str)
+    }
     try:
         for name in PROVIDER_ENV_NAMES:
             value = st.secrets.get(name)
