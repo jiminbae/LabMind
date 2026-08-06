@@ -243,7 +243,7 @@ class AppV5HelpersTest(unittest.TestCase):
         next(
             button
             for button in app.button
-            if button.label == "Run verified search"
+            if button.label == "Verify question against inventory"
         ).click()
         app.run(timeout=20)
 
@@ -516,7 +516,7 @@ app_v5.render_storage_step()
         next(
             button
             for button in app.button
-            if button.label == "Classify chemical function"
+            if button.label == "Generate AI chemistry profile"
         ).click()
         app.run(timeout=20)
 
@@ -539,7 +539,9 @@ app_v5.render_storage_step()
             "image/png",
         )
         app.run(timeout=20)
-        next(button for button in app.button if button.label == "Extract label").click()
+        next(
+            button for button in app.button if button.label == "Read label with Gemini"
+        ).click()
         app.run(timeout=20)
         next(
             button for button in app.button if button.label == "Continue to order"
@@ -676,7 +678,9 @@ render_natural_language_query(load_sample_inventory(db_path={self.database_argum
             "Do we have a chiral phosphine ligand for asymmetric reduction?"
         )
         next(
-            button for button in app.button if button.label == "Run verified search"
+            button
+            for button in app.button
+            if button.label == "Verify question against inventory"
         ).click()
         app.run(timeout=20)
         self.assertEqual(len(app.exception), 0)
@@ -686,11 +690,22 @@ render_natural_language_query(load_sample_inventory(db_path={self.database_argum
         source = Path("app_v5.py").read_text(encoding="utf-8")
         self.assertIn('button[data-testid="stBaseButton-primary"]', source)
         self.assertIn('div[data-testid="stButtonGroup"]', source)
+        self.assertIn('div[data-testid="stSpinner"]', source)
         self.assertIn(".st-key-primary_view", source)
         self.assertIn("@media (prefers-reduced-motion: reduce)", source)
         self.assertNotIn('st.tabs(["Add Reagent", "Query Inventory"])', source)
         config = Path(".streamlit/config.toml").read_text(encoding="utf-8")
         self.assertIn('base = "light"', config)
+
+    def test_slow_actions_have_specific_loading_feedback(self) -> None:
+        source = Path("app_v5.py").read_text(encoding="utf-8")
+        self.assertIn("Reading the reagent label with Gemini…", source)
+        self.assertIn(
+            "Generating chemical functions and storage constraints with Gemini…",
+            source,
+        )
+        self.assertIn("Interpreting the question and verifying inventory…", source)
+        self.assertIn("Saving the reviewed reagent record…", source)
 
 
 if __name__ == "__main__":
