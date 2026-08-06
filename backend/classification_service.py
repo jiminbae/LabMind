@@ -127,12 +127,14 @@ def _response_to_model(response: Any) -> ChemicalClassification:
 
 
 def _validated_values(values: list[str], allowed: frozenset[str]) -> tuple[list[str], list[str]]:
+    canonical_values = {value.casefold(): value for value in allowed}
     accepted: list[str] = []
     rejected: list[str] = []
     for value in values:
         normalized = value.strip() if isinstance(value, str) else ""
-        if normalized in allowed and normalized not in accepted:
-            accepted.append(normalized)
+        canonical = canonical_values.get(normalized.casefold())
+        if canonical and canonical not in accepted:
+            accepted.append(canonical)
         elif normalized:
             rejected.append(normalized)
     return accepted, rejected
@@ -175,7 +177,12 @@ def classify_cas_with_gemini(
         )
 
     prompt = (
-        f"{CLASSIFICATION_PROMPT}\n\nCAS number: {normalized_cas}\n"
+        f"{CLASSIFICATION_PROMPT}\n\n"
+        "Allowed chemical-function labels: "
+        f"{', '.join(sorted(CHEMICAL_LABEL_OPTIONS))}\n"
+        "Allowed storage constraints: "
+        f"{', '.join(STORAGE_CONSTRAINT_OPTIONS)}\n\n"
+        f"CAS number: {normalized_cas}\n"
         f"Chemical name from the reviewed label: {(chemical_name or '').strip() or 'Not supplied'}"
     )
     try:

@@ -380,8 +380,8 @@ class AIServiceTests(unittest.TestCase):
     def test_classification_is_cached_by_cas_and_never_selects_storage(self) -> None:
         models = FakeModels(
             ChemicalClassification(
-                labels=["Chiral ligand", "Phosphine ligand"],
-                constraints=["Ambient temperature", "Keep away from oxidizers"],
+                labels=["chiral ligand", "Phosphine ligand"],
+                constraints=["ambient temperature", "Keep away from oxidizers"],
                 confidence=0.87,
                 rationale="A chiral phosphine ligand.",
             )
@@ -410,6 +410,15 @@ class AIServiceTests(unittest.TestCase):
         self.assertEqual(second.status, "cached")
         self.assertEqual(len(models.calls), 1)
         self.assertEqual(first.classification["labels"], ["Chiral ligand", "Phosphine ligand"])
+        self.assertEqual(
+            first.classification["constraints"],
+            ["Ambient temperature", "Keep away from oxidizers"],
+        )
+        prompt = str(models.calls[0]["contents"])
+        self.assertIn("Allowed chemical-function labels:", prompt)
+        self.assertIn("Chiral ligand", prompt)
+        self.assertIn("Allowed storage constraints:", prompt)
+        self.assertIn("Keep away from oxidizers", prompt)
         self.assertNotIn("location", first.classification)
 
     def test_query_translation_returns_only_a_search_plan(self) -> None:

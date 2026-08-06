@@ -3447,7 +3447,10 @@ def render_inventory_results(
 
     render_inventory_metrics(frame)
     display_frame = frame.copy()
-    display_frame["Expiry date"] = pd.to_datetime(display_frame["Expiry date"])
+    display_frame["Expiry date"] = pd.to_datetime(
+        display_frame["Expiry date"],
+        errors="coerce",
+    )
     display_columns = [
         "Record ID",
         "Chemical name",

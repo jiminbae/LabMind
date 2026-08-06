@@ -219,6 +219,41 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertEqual(result["Chemical name"].tolist(), ["Ethanol"])
         self.assertEqual(result["Quantity"].tolist(), [500.0])
 
+    def test_inventory_view_renders_records_without_expiry_dates(self) -> None:
+        self.register(self.reagent_payload(expiry_date=None))
+        app = AppTest.from_file("app.py").run(timeout=20)
+        app.segmented_control[0].set_value("Inventory search")
+        app.run(timeout=20)
+
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(len(app.dataframe), 1)
+        self.assertEqual(
+            app.dataframe[0].value["Chemical name"].tolist(),
+            ["Ethanol"],
+        )
+
+    def test_natural_query_renders_records_without_expiry_dates(self) -> None:
+        self.register(self.reagent_payload(expiry_date=None))
+        app = AppTest.from_string(
+            "from app_v5 import render_query_tab\nrender_query_tab()"
+        ).run(timeout=20)
+        app.segmented_control[0].set_value("Natural-language query")
+        app.run(timeout=20)
+        app.text_area[0].set_value("How much ethanol is left?")
+        next(
+            button
+            for button in app.button
+            if button.label == "Run verified search"
+        ).click()
+        app.run(timeout=20)
+
+        self.assertEqual(len(app.exception), 0)
+        self.assertEqual(len(app.dataframe), 1)
+        self.assertEqual(
+            app.dataframe[0].value["Chemical name"].tolist(),
+            ["Ethanol"],
+        )
+
     def test_structured_query_runs_against_loaded_inventory_only(self) -> None:
         self.register(self.reagent_payload())
         self.register(
