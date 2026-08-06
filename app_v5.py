@@ -1899,6 +1899,334 @@ def apply_theme() -> None:
             }
         }
 
+        /* LabMind visual refinement: keep the product task ahead of the pitch. */
+        .hero {
+            gap: clamp(28px, 4vw, 48px);
+            grid-template-columns: minmax(0, 1.25fr) minmax(310px, .75fr);
+            padding: 22px 0 18px;
+        }
+
+        .hero-kicker {
+            font-size: 11px;
+            margin-bottom: 9px;
+        }
+
+        .hero-title {
+            font-size: clamp(38px, 4.2vw, 50px);
+            line-height: 1.03;
+        }
+
+        .hero-copy {
+            font-size: 15px;
+            line-height: 1.5;
+            margin-top: 12px;
+        }
+
+        .capability-rail {
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(20, 32, 43, .045);
+            padding: 4px;
+        }
+
+        .capability {
+            gap: 2px 9px;
+            grid-template-columns: 28px 1fr;
+            padding: 10px 11px;
+        }
+
+        .capability > span {
+            border-radius: 8px;
+            font-size: 10px;
+            height: 28px;
+            width: 28px;
+        }
+
+        .capability strong {
+            font-size: 13px;
+        }
+
+        .capability small {
+            font-size: 11.5px;
+        }
+
+        .st-key-primary_view {
+            margin-bottom: var(--space-4);
+        }
+
+        .st-key-primary_view [role="radiogroup"],
+        .st-key-primary_view div[data-testid="stSegmentedControl"] > div,
+        .st-key-primary_view div[data-testid="stButtonGroup"] [role="radiogroup"] {
+            background: #e9eef2 !important;
+            border: 1px solid rgba(20, 32, 43, .08) !important;
+            border-radius: 14px !important;
+            box-shadow: inset 0 1px 2px rgba(20, 32, 43, .035) !important;
+            max-width: 520px;
+            padding: 4px !important;
+        }
+
+        .st-key-primary_view button[data-variant="segmented_control"],
+        .st-key-primary_view div[data-testid="stSegmentedControl"] button,
+        .st-key-primary_view div[data-testid="stButtonGroup"]
+        button[data-variant="segmented_control"] {
+            border: 0 !important;
+            border-radius: 10px !important;
+            min-height: 44px !important;
+        }
+
+        .st-key-primary_view button[data-variant="segmented_control"][data-selected],
+        .st-key-primary_view button[data-variant="segmented_control"][aria-checked="true"],
+        .st-key-primary_view div[data-testid="stSegmentedControl"] button[aria-pressed="true"],
+        .st-key-primary_view div[data-testid="stButtonGroup"]
+        button[data-variant="segmented_control"][data-selected],
+        .st-key-primary_view div[data-testid="stButtonGroup"]
+        button[data-variant="segmented_control"][aria-checked="true"] {
+            background: #fff !important;
+            border: 0 !important;
+            box-shadow: 0 1px 5px rgba(20, 32, 43, .13) !important;
+            color: var(--accent) !important;
+        }
+
+        .section-eyebrow {
+            margin-bottom: 6px;
+        }
+
+        .section-title {
+            font-size: clamp(27px, 2.45vw, 34px);
+        }
+
+        .section-copy {
+            margin-top: 6px;
+        }
+
+        .stepper {
+            margin: 8px 0 14px;
+        }
+
+        .st-key-intake_start {
+            margin-top: 0;
+            max-width: 760px;
+        }
+
+        .st-key-upload_panel,
+        .st-key-query_panel {
+            padding: 24px;
+        }
+
+        div[data-testid="stFileUploader"] section {
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 164px;
+            text-align: center;
+        }
+
+        div[data-testid="stFileUploaderDropzoneInstructions"] {
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        div[data-testid="stFileUploader"] section > div {
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .upload-hint {
+            justify-content: center;
+            text-align: center;
+        }
+
+        .st-key-query_mode {
+            margin-bottom: 8px;
+            max-width: 520px;
+        }
+
+        .st-key-query_mode [role="radiogroup"],
+        .st-key-query_mode div[data-testid="stSegmentedControl"] > div {
+            background: #e9eef2;
+            border-color: rgba(20, 32, 43, .08);
+            border-radius: 12px;
+            padding: 4px;
+        }
+
+        .st-key-query_mode button[data-variant="segmented_control"][data-selected],
+        .st-key-query_mode button[data-variant="segmented_control"][aria-checked="true"],
+        .st-key-query_mode div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+            background: #fff !important;
+            box-shadow: 0 1px 4px rgba(20, 32, 43, .12) !important;
+        }
+
+        .st-key-query_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
+        > div[data-testid="stColumn"]:first-child {
+            flex: 3 1 0 !important;
+        }
+
+        .st-key-query_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
+        > div[data-testid="stColumn"]:last-child {
+            flex: 1 1 0 !important;
+        }
+
+        .st-key-clear_basic_query button,
+        .st-key-clear_basic_query button:disabled {
+            background: transparent !important;
+            border-color: transparent !important;
+            color: var(--secondary) !important;
+            box-shadow: none !important;
+        }
+
+        .st-key-clear_basic_query button:not(:disabled):hover {
+            background: rgba(20, 32, 43, .055) !important;
+            border-color: transparent !important;
+        }
+
+        .query-ready {
+            align-items: center;
+            min-height: 80px;
+            text-align: center;
+        }
+
+        @media (max-width: 820px) {
+            .hero {
+                gap: 14px;
+                padding: 18px 0 14px;
+            }
+
+            .hero-title {
+                font-size: clamp(34px, 7.4vw, 42px);
+            }
+
+            .hero-copy {
+                font-size: 15px;
+                margin-top: 10px;
+            }
+
+            .capability {
+                padding: 9px 7px;
+            }
+
+            .capability strong {
+                font-size: 12px;
+                line-height: 1.25;
+            }
+
+            .capability small {
+                display: none;
+            }
+
+            .st-key-primary_view {
+                margin-bottom: 20px;
+            }
+
+            .st-key-upload_panel,
+            .st-key-query_panel {
+                padding: 18px;
+            }
+
+            div[data-testid="stFileUploader"] section {
+                min-height: 152px;
+            }
+        }
+
+        @media (max-width: 460px) {
+            .topbar {
+                min-height: 54px;
+                padding-bottom: 10px;
+            }
+
+            .brand-mark {
+                height: 34px;
+                width: 34px;
+            }
+
+            .hero {
+                gap: 12px;
+                padding: 16px 0 13px;
+            }
+
+            .hero-kicker {
+                font-size: 10px;
+                margin-bottom: 7px;
+            }
+
+            .hero-title {
+                font-size: 30px;
+                line-height: 1.05;
+            }
+
+            .hero-copy {
+                font-size: 14px;
+                line-height: 1.48;
+            }
+
+            .capability-rail {
+                gap: 0;
+                padding: 3px;
+            }
+
+            .capability {
+                display: grid;
+                gap: 5px;
+                grid-template-columns: 1fr;
+                justify-items: center;
+                min-width: 0;
+                padding: 8px 4px;
+                text-align: center;
+            }
+
+            .capability > span {
+                flex: none;
+                font-size: 9.5px;
+                height: 24px;
+                width: 24px;
+            }
+
+            .capability strong {
+                font-size: 11.5px;
+                line-height: 1.22;
+            }
+
+            .section-title {
+                font-size: 26px;
+            }
+
+            .section-copy {
+                font-size: 14px;
+            }
+
+            .step {
+                font-size: 11px;
+                line-height: 1.2;
+            }
+
+            .step strong {
+                font-size: 9.5px;
+                height: 24px;
+                width: 24px;
+            }
+
+            .st-key-primary_view button[data-variant="segmented_control"],
+            .st-key-primary_view div[data-testid="stSegmentedControl"] button {
+                font-size: 13px;
+            }
+
+            .st-key-query_mode button[data-variant="segmented_control"],
+            .st-key-query_mode div[data-testid="stSegmentedControl"] button {
+                font-size: 12.5px;
+            }
+
+            .metric-label {
+                font-size: 11px;
+            }
+
+            .st-key-query_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
+            > div[data-testid="stColumn"] {
+                flex: 1 1 100% !important;
+            }
+        }
+
         @media (prefers-reduced-motion: reduce) {
             *,
             *::before,
