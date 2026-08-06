@@ -2320,20 +2320,11 @@ def route_natural_language_query(
     *,
     provider_environment: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Route chemistry concepts before structured inventory filters."""
+    """Route known intents first, then safely translate unfamiliar chemistry."""
     normalized = query.lower().strip()
-    chemical_signals = (
-        "chiral",
-        "asymmetric",
-        "ligand",
-        "protic",
-        "nitrile",
-        "cyano",
-        "lewis acid",
-        "organometallic",
-        "organolithium",
-        "substructure",
-    )
+    if not normalized:
+        return compile_structured_query(query, frame)
+
     translation = translate_chemical_query(query)
     if translation:
         result, skipped, warning = execute_smarts_query(
@@ -2352,41 +2343,43 @@ def route_natural_language_query(
             "explanation": translation["explanation"],
             "skipped": skipped,
         }
-    if any(signal in normalized for signal in chemical_signals):
-        provider_result = translate_chemical_question(
-            query,
-            environ=provider_environment,
+    structured_plan = compile_structured_query(query, frame)
+    if structured_plan["route"] != "unsupported":
+        return structured_plan
+
+    provider_result = translate_chemical_question(
+        query,
+        environ=provider_environment,
+    )
+    if provider_result.translation:
+        translation = provider_result.translation
+        result, skipped, warning = execute_smarts_query(
+            frame,
+            translation["patterns"],
+            translation["required_labels"],
         )
-        if provider_result.translation:
-            translation = provider_result.translation
-            result, skipped, warning = execute_smarts_query(
-                frame,
-                translation["patterns"],
-                translation["required_labels"],
-            )
-            return {
-                "route": "chemical",
-                "route_label": "Chemical meaning query",
-                "interpretation": translation["concept"],
-                "query_code": "\n".join(translation["patterns"]),
-                "parameters": translation["required_labels"],
-                "results": result,
-                "warning": warning,
-                "explanation": translation["explanation"],
-                "skipped": skipped,
-            }
         return {
-            "route": "unsupported",
-            "route_label": "Chemistry translation unavailable",
-            "interpretation": (
-                "This chemistry concept needs a reviewed SMARTS translation before search."
-            ),
-            "query_code": "",
-            "parameters": [],
-            "results": empty_inventory_result(frame),
-            "warning": provider_result.message,
+            "route": "chemical",
+            "route_label": "Chemical meaning query",
+            "interpretation": translation["concept"],
+            "query_code": "\n".join(translation["patterns"]),
+            "parameters": translation["required_labels"],
+            "results": result,
+            "warning": warning,
+            "explanation": translation["explanation"],
+            "skipped": skipped,
         }
-    return compile_structured_query(query, frame)
+    return {
+        "route": "unsupported",
+        "route_label": "Chemistry translation unavailable",
+        "interpretation": (
+            "This question needs a reviewed SMARTS translation before search."
+        ),
+        "query_code": "",
+        "parameters": [],
+        "results": empty_inventory_result(frame),
+        "warning": provider_result.message,
+    }
 
 
 def interpret_sample_query(
@@ -2899,6 +2892,42 @@ def synchronize_classification_state(
     return get_chemical_classification(cas_number)
 
 
+def classify_current_chemical() -> None:
+    """Run optional AI classification before storage widgets are instantiated."""
+
+    result = classify_cas_with_gemini(
+        st.session_state.get("add_field_cas_number", ""),
+        chemical_name=st.session_state.get("add_field_chemical_name", ""),
+        environ=streamlit_provider_environment(),
+    )
+    profile = result.classification
+    current_labels = list(st.session_state.get("add_chemical_labels", []))
+    current_constraints = list(st.session_state.get("add_storage_constraints", []))
+    proposed_labels = list(profile.get("labels", []))
+    proposed_constraints = list(profile.get("constraints", []))
+    st.session_state["add_classification_cas"] = profile.get(
+        "cas_number",
+        st.session_state.get("add_field_cas_number", ""),
+    )
+    st.session_state["add_chemical_labels"] = list(
+        dict.fromkeys(current_labels + proposed_labels)
+    )
+    st.session_state["add_storage_constraints"] = list(
+        dict.fromkeys(current_constraints + proposed_constraints)
+    )
+    st.session_state["add_classification_confidence"] = profile.get(
+        "confidence", 0
+    )
+    st.session_state["add_classification_source"] = profile.get(
+        "cache_status", "Manual classification required"
+    )
+    st.session_state["add_classification_rationale"] = profile.get(
+        "rationale", result.message
+    )
+    st.session_state["add_classification_notice"] = result.message
+    st.session_state.pop("add_manual_storage_reviewed", None)
+
+
 def render_storage_step() -> None:
     if not st.session_state.get("add_extraction_complete"):
         return
@@ -2955,25 +2984,15 @@ def render_storage_step() -> None:
         unsafe_allow_html=True,
     )
     if not classification["labels"] and not classification["constraints"]:
-        if st.button(
+        st.button(
             "Classify chemical function",
             width="stretch",
             key="run_chemical_classification",
-        ):
-            result = classify_cas_with_gemini(
-                st.session_state.get("add_field_cas_number", ""),
-                chemical_name=st.session_state.get("add_field_chemical_name", ""),
-                environ=streamlit_provider_environment(),
-            )
-            profile = result.classification
-            st.session_state["add_classification_cas"] = profile["cas_number"]
-            st.session_state["add_chemical_labels"] = list(profile["labels"])
-            st.session_state["add_storage_constraints"] = list(profile["constraints"])
-            st.session_state["add_classification_confidence"] = profile["confidence"]
-            st.session_state["add_classification_source"] = profile["cache_status"]
-            st.session_state["add_classification_rationale"] = profile["rationale"]
-            st.session_state["add_classification_notice"] = result.message
-            st.rerun()
+            disabled=not validate_cas_number(
+                st.session_state.get("add_field_cas_number", "")
+            ),
+            on_click=classify_current_chemical,
+        )
     if st.session_state.get("add_classification_notice"):
         st.info(st.session_state["add_classification_notice"])
 
@@ -3490,6 +3509,7 @@ def clear_query_state() -> None:
         "query_results",
         "query_natural_text",
         "query_natural_plan",
+        "query_natural_plan_question",
     }
     clear_state_keys(st.session_state, frozenset(keys))
 
@@ -3603,11 +3623,13 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
         key="run_natural_query",
         disabled=not query_text.strip(),
     ):
+        submitted_question = st.session_state.get("query_natural_text", "").strip()
         st.session_state["query_natural_plan"] = route_natural_language_query(
-            st.session_state.get("query_natural_text", ""),
+            submitted_question,
             frame,
             provider_environment=streamlit_provider_environment(),
         )
+        st.session_state["query_natural_plan_question"] = submitted_question
 
     with st.expander("How answers are verified"):
         st.markdown(
@@ -3624,7 +3646,10 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
         )
 
     plan = st.session_state.get("query_natural_plan")
-    if not plan:
+    plan_matches_question = (
+        st.session_state.get("query_natural_plan_question") == query_text.strip()
+    )
+    if not plan or not plan_matches_question:
         st.markdown(
             '<div class="query-ready">Ask a question to see the verified execution path and matching inventory records.</div>',
             unsafe_allow_html=True,

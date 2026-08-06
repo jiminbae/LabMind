@@ -30,6 +30,7 @@ from app_v5 import (
     validate_cas_number,
 )
 from backend.db_utils import list_reagents
+from backend.query_translation_service import QueryTranslationResult
 
 
 SINGLE_PIXEL_PNG = bytes.fromhex(
@@ -298,6 +299,36 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertTrue(invalid.empty)
         self.assertIn("failed validation", warning)
 
+    def test_unfamiliar_chemical_query_reaches_live_translator(self) -> None:
+        if Chem is None:
+            self.skipTest("RDKit is not installed in this runtime.")
+        self.register(self.reagent_payload())
+        frame = self.load_inventory()
+        translation = QueryTranslationResult(
+            status="success",
+            translation={
+                "concept": "Alcohol-containing reagent",
+                "patterns": ["[O]"],
+                "required_labels": [],
+                "explanation": "Contains oxygen.",
+            },
+            message="A chemistry search plan was proposed.",
+        )
+
+        with patch("app_v5.translate_chemical_question", return_value=translation) as call:
+            plan = route_natural_language_query(
+                "Do we have an alcohol-containing reagent?",
+                frame,
+                provider_environment={
+                    "LABMIND_VISION_MODE": "live",
+                    "GEMINI_API_KEY": "test-key",
+                },
+            )
+
+        call.assert_called_once()
+        self.assertEqual(plan["route"], "chemical")
+        self.assertEqual(plan["results"]["Chemical name"].tolist(), ["Ethanol"])
+
     def test_file_signature_uses_contents(self) -> None:
         first = uploaded_file_signature(b"same-name-first-content")
         second = uploaded_file_signature(b"same-name-second-content")
@@ -408,6 +439,62 @@ render_registration_workspace()
         for stage in ("Details", "Order", "Storage", "Review"):
             app = AppTest.from_string(harness_template.format(stage=stage)).run(timeout=20)
             self.assertEqual(len(app.exception), 0, stage)
+
+    def test_classification_callback_updates_rendered_multiselects_without_error(self) -> None:
+        app = AppTest.from_string(
+            """
+import streamlit as st
+import app_v5
+from backend.classification_service import ClassificationResult
+
+st.session_state.setdefault("add_extraction_complete", True)
+st.session_state.setdefault("add_field_chemical_name", "Formaldehyde")
+st.session_state.setdefault("add_field_cas_number", "50-00-0")
+app_v5.classify_cas_with_gemini = lambda *args, **kwargs: ClassificationResult(
+    status="success",
+    classification={
+        "cas_number": "50-00-0",
+        "labels": ["Reducing agent"],
+        "constraints": ["Keep away from oxidizers"],
+        "confidence": 0.88,
+        "cache_status": "Gemini chemical classification",
+        "rationale": "Test classification.",
+    },
+    message="AI classification is ready for review.",
+)
+app_v5.render_storage_step()
+"""
+        ).run(timeout=20)
+        self.assertEqual(len(app.exception), 0)
+
+        next(
+            widget
+            for widget in app.multiselect
+            if widget.key == "add_chemical_labels"
+        ).set_value(["Organic compound"])
+        next(
+            widget
+            for widget in app.multiselect
+            if widget.key == "add_storage_constraints"
+        ).set_value(["Ambient temperature"])
+        app.run(timeout=20)
+        next(
+            button
+            for button in app.button
+            if button.label == "Classify chemical function"
+        ).click()
+        app.run(timeout=20)
+
+        self.assertEqual(len(app.exception), 0)
+        state = app.session_state.filtered_state
+        self.assertEqual(
+            state["add_chemical_labels"],
+            ["Organic compound", "Reducing agent"],
+        )
+        self.assertEqual(
+            state["add_storage_constraints"],
+            ["Ambient temperature", "Keep away from oxidizers"],
+        )
 
     def test_manual_extraction_fields_survive_stage_navigation_without_sample_data(self) -> None:
         app = AppTest.from_file("app.py").run(timeout=20)
