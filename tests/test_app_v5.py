@@ -256,6 +256,7 @@ class AppV5HelpersTest(unittest.TestCase):
             app.dataframe[0].value["Chemical name"].tolist(),
             ["Ethanol"],
         )
+        self.assertEqual(len(app.code), 0)
 
     def test_structured_query_runs_against_loaded_inventory_only(self) -> None:
         self.register(self.reagent_payload())
@@ -282,6 +283,39 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertIn("?", plan["query_code"])
         self.assertNotIn("ethanol", plan["query_code"].lower())
         self.assertNotIn("DROP TABLE", malicious["query_code"])
+
+    def test_named_inventory_item_wins_over_chemical_concept_translation(self) -> None:
+        self.register(
+            self.reagent_payload(
+                chemical_name="(R)-BINAP",
+                cas_number="76189-55-4",
+                batch_number="LOT-BINAP-NAMED",
+                quantity=1,
+                labels=[],
+                receipt_key="test:76189-55-4:LOT-BINAP-NAMED",
+            )
+        )
+        frame = self.load_inventory()
+
+        by_short_name = route_natural_language_query(
+            "Do we have BINAP, a chiral ligand?",
+            frame,
+        )
+        by_cas = route_natural_language_query(
+            "Is CAS 76189-55-4 currently in inventory?",
+            frame,
+        )
+
+        self.assertEqual(by_short_name["route"], "structured")
+        self.assertEqual(by_cas["route"], "structured")
+        self.assertEqual(
+            by_short_name["results"]["Chemical name"].tolist(),
+            ["(R)-BINAP"],
+        )
+        self.assertEqual(
+            by_cas["results"]["Chemical name"].tolist(),
+            ["(R)-BINAP"],
+        )
 
     def test_smarts_query_joins_only_to_available_nonexpired_records(self) -> None:
         if Chem is None:

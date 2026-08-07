@@ -2463,6 +2463,82 @@ def empty_inventory_result(frame: pd.DataFrame) -> pd.DataFrame:
     return frame.iloc[0:0].copy().reset_index(drop=True)
 
 
+def _normalize_inventory_phrase(value: object) -> str:
+    """Normalize names and questions without relying on punctuation or case."""
+
+    return re.sub(r"[^a-z0-9]+", " ", str(value).casefold()).strip()
+
+
+def _requested_inventory_chemical(query: str, frame: pd.DataFrame) -> str | None:
+    """Resolve an explicitly named inventory chemical, CAS number, or safe alias."""
+
+    if "Chemical name" not in frame.columns:
+        return None
+
+    alias_candidates: dict[str, set[str]] = {}
+
+    def add_alias(alias: object, canonical: str) -> None:
+        normalized_alias = _normalize_inventory_phrase(alias)
+        if normalized_alias:
+            alias_candidates.setdefault(normalized_alias, set()).add(canonical)
+
+    canonical_by_normalized: dict[str, str] = {}
+    for chemical_name in frame["Chemical name"].dropna().unique():
+        canonical = str(chemical_name).strip()
+        if not canonical:
+            continue
+        normalized_name = _normalize_inventory_phrase(canonical)
+        canonical_by_normalized.setdefault(normalized_name, canonical)
+        add_alias(canonical, canonical)
+        add_alias(re.sub(r"\([^)]*\)", " ", canonical), canonical)
+        add_alias(canonical.split(",", maxsplit=1)[0], canonical)
+
+        tokens = normalized_name.split()
+        while tokens and (
+            len(tokens[0]) == 1 or tokens[0] in {"rac", "cis", "trans"}
+        ):
+            tokens = tokens[1:]
+            add_alias(" ".join(tokens), canonical)
+
+    if "CAS number" in frame.columns:
+        for _, row in frame[["Chemical name", "CAS number"]].dropna().iterrows():
+            canonical = str(row["Chemical name"]).strip()
+            if canonical:
+                add_alias(row["CAS number"], canonical)
+
+    common_aliases = {
+        "dcm": ("dichloromethane", "methylene chloride"),
+        "meoh": ("methanol",),
+        "etoh": ("ethanol",),
+        "acn": ("acetonitrile",),
+        "thf": ("tetrahydrofuran",),
+        "dmf": ("dimethylformamide", "n n dimethylformamide"),
+    }
+    for alias, target_names in common_aliases.items():
+        for target_name in target_names:
+            canonical = canonical_by_normalized.get(
+                _normalize_inventory_phrase(target_name)
+            )
+            if canonical:
+                add_alias(alias, canonical)
+                break
+
+    normalized_query = f" {_normalize_inventory_phrase(query)} "
+    unambiguous_aliases = (
+        (alias, next(iter(canonical_names)))
+        for alias, canonical_names in alias_candidates.items()
+        if len(canonical_names) == 1
+    )
+    for alias, canonical in sorted(
+        unambiguous_aliases,
+        key=lambda candidate: (len(candidate[0].split()), len(candidate[0])),
+        reverse=True,
+    ):
+        if f" {alias} " in normalized_query:
+            return canonical
+    return None
+
+
 def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
     """Compile an allowlisted inventory intent into a verified loaded-record filter."""
     normalized = query.lower().strip()
@@ -2478,22 +2554,7 @@ def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
             "warning": "",
         }
 
-    chemical_aliases = {
-        "dcm": "Dichloromethane",
-        "dichloromethane": "Dichloromethane",
-    }
-    for chemical_name in frame.get("Chemical name", pd.Series(dtype=str)).dropna().unique():
-        name = str(chemical_name).strip()
-        if name:
-            chemical_aliases[name.lower()] = name
-    requested_chemical = next(
-        (
-            canonical
-            for alias, canonical in chemical_aliases.items()
-            if alias in normalized
-        ),
-        None,
-    )
+    requested_chemical = _requested_inventory_chemical(query, frame)
     if requested_chemical:
         result = frame[
             (frame["Chemical name"].str.lower() == requested_chemical.lower())
@@ -2673,6 +2734,10 @@ def route_natural_language_query(
     if not normalized:
         return compile_structured_query(query, frame)
 
+    structured_plan = compile_structured_query(query, frame)
+    if structured_plan["route"] != "unsupported":
+        return structured_plan
+
     translation = translate_chemical_query(query)
     if translation:
         result, skipped, warning = execute_smarts_query(
@@ -2691,9 +2756,6 @@ def route_natural_language_query(
             "explanation": translation["explanation"],
             "skipped": skipped,
         }
-    structured_plan = compile_structured_query(query, frame)
-    if structured_plan["route"] != "unsupported":
-        return structured_plan
 
     provider_result = translate_chemical_question(
         query,
@@ -4031,13 +4093,6 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
         """,
         unsafe_allow_html=True,
     )
-    if plan["query_code"]:
-        st.code(plan["query_code"])
-    if plan.get("parameters"):
-        st.caption(
-            "Bound parameters / required labels: "
-            + " · ".join(str(value) for value in plan["parameters"])
-        )
     if plan.get("warning"):
         st.warning(plan["warning"])
     if plan["route"] == "chemical" and not plan.get("warning"):
