@@ -729,6 +729,12 @@ render_natural_language_query(load_sample_inventory(db_path={self.database_argum
         config = Path(".streamlit/config.toml").read_text(encoding="utf-8")
         self.assertIn('base = "light"', config)
 
+    def test_natural_query_omits_suggested_questions_and_workflow_trace(self) -> None:
+        source = Path("app_v5.py").read_text(encoding="utf-8")
+        self.assertNotIn("Suggested questions", source)
+        self.assertNotIn("st.pills(", source)
+        self.assertNotIn('class="query-trace"', source)
+
     def test_slow_actions_have_specific_loading_feedback(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")
         self.assertIn("Reading the reagent label with Gemini…", source)

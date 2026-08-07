@@ -3966,17 +3966,6 @@ def render_basic_query(frame: pd.DataFrame) -> pd.DataFrame:
     return st.session_state["query_results"]
 
 
-def set_natural_query_example(question: str) -> None:
-    st.session_state["query_natural_text"] = question
-    st.session_state.pop("query_natural_plan", None)
-
-
-def apply_natural_query_example(examples: dict[str, str]) -> None:
-    selection = st.session_state.get("query_example_choice")
-    if selection in examples:
-        set_natural_query_example(examples[selection])
-
-
 def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
     query_text = st.text_area(
         "Ask a chemistry or inventory question",
@@ -3985,22 +3974,6 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
         ),
         height=110,
         key="query_natural_text",
-    )
-    examples = {
-        "Chiral ligands": (
-            "Do we have a chiral phosphine ligand for asymmetric reduction?"
-        ),
-        "Protic solvents": "Which protic solvents are currently on hand?",
-        "Expiry check": "Show reagents expiring within 30 days.",
-    }
-    st.pills(
-        "Suggested questions",
-        list(examples),
-        key="query_example_choice",
-        width="stretch",
-        label_visibility="collapsed",
-        on_change=apply_natural_query_example,
-        args=(examples,),
     )
     if st.button(
         "Verify question against inventory",
@@ -4056,33 +4029,6 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
             </div>
         </div>
         """,
-        unsafe_allow_html=True,
-    )
-    if plan["route"] == "chemical":
-        trace = [
-            ("01 · Interpret", "Chemical concept"),
-            ("02 · Validate", "SMARTS pattern"),
-            ("03 · Match", "RDKit structures"),
-            ("04 · Verify", "On-hand inventory join"),
-        ]
-    elif plan["route"] == "structured":
-        trace = [
-            ("01 · Interpret", "Inventory intent"),
-            ("02 · Compile", "Approved record filter"),
-            ("03 · Apply", "Loaded inventory records"),
-            ("04 · Return", "Verified record state"),
-        ]
-    else:
-        trace = [
-            ("01 · Inspect", "Question received"),
-            ("02 · Stop safely", "No approved translation"),
-        ]
-    trace_html = "".join(
-        f'<div class="trace-step"><strong>{escaped(title)}</strong>{escaped(copy)}</div>'
-        for title, copy in trace
-    )
-    st.markdown(
-        f'<div class="query-trace">{trace_html}</div>',
         unsafe_allow_html=True,
     )
     if plan["query_code"]:
