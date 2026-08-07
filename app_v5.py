@@ -2557,22 +2557,19 @@ def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
     requested_chemical = _requested_inventory_chemical(query, frame)
     if requested_chemical:
         result = frame[
-            (frame["Chemical name"].str.lower() == requested_chemical.lower())
-            & (frame["Quantity"] > 0)
-            & (frame["Status"] != "Expired")
+            frame["Chemical name"].str.casefold() == requested_chemical.casefold()
         ]
         return {
             "route": "structured",
             "route_label": "Structured inventory query",
             "interpretation": (
-                f"Current on-hand inventory records for {requested_chemical}."
+                f"Inventory records and current availability for {requested_chemical}."
             ),
             "query_code": (
                 "Loaded inventory filter\n"
-                "chemical_name = ?\n"
-                "quantity > ? AND status <> ?"
+                "chemical_name = ?"
             ),
-            "parameters": [requested_chemical, 0, "Expired"],
+            "parameters": [requested_chemical],
             "results": result.reset_index(drop=True),
             "warning": "",
         }

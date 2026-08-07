@@ -290,7 +290,8 @@ class AppV5HelpersTest(unittest.TestCase):
                 chemical_name="(R)-BINAP",
                 cas_number="76189-55-4",
                 batch_number="LOT-BINAP-NAMED",
-                quantity=1,
+                quantity=0,
+                expiry_date=(date.today() - timedelta(days=1)).isoformat(),
                 labels=[],
                 receipt_key="test:76189-55-4:LOT-BINAP-NAMED",
             )
@@ -316,6 +317,8 @@ class AppV5HelpersTest(unittest.TestCase):
             by_cas["results"]["Chemical name"].tolist(),
             ["(R)-BINAP"],
         )
+        self.assertEqual(by_short_name["results"]["Quantity"].tolist(), [0])
+        self.assertEqual(by_short_name["results"]["Status"].tolist(), ["Expired"])
 
     def test_smarts_query_joins_only_to_available_nonexpired_records(self) -> None:
         if Chem is None:
