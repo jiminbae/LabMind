@@ -23,7 +23,7 @@ INVENTORY_COLUMNS = (
     "Batch number",
     "Specification",
     "Quantity",
-    "Unit",
+    "Volume (mL)",
     "Expiry date",
     "Storage location",
     "SMILES",
@@ -78,7 +78,8 @@ def payload_to_reagent_data(payload: Mapping[str, Any]) -> dict[str, Any]:
         "lot_number": _optional_text(payload.get("batch_number")),
         "manufacturer": _optional_text(payload.get("manufacturer")),
         "quantity": payload.get("quantity", 0),
-        "quantity_unit": _optional_text(payload.get("unit")) or "unit",
+        "quantity_unit": "unit",
+        "volume_ml": payload.get("volume_ml", 0),
         "location": _optional_text(payload.get("storage_location"))
         or decision["location"],
         "expiry_date": _optional_text(payload.get("expiry_date")),
@@ -187,7 +188,7 @@ def _expiry_state(expiry_date: date | None, today: date) -> str:
 
 
 def _inventory_status(
-    quantity: float,
+    quantity: int,
     expiry_state: str,
     manual_review: bool,
 ) -> str:
@@ -210,7 +211,8 @@ def reagent_rows_to_inventory_frame(
     effective_today = today or date.today()
     records: list[dict[str, Any]] = []
     for row in rows:
-        quantity = float(row.get("quantity") or 0)
+        quantity = int(row.get("quantity") or 0)
+        volume_ml = float(row.get("volume_ml") or 0)
         expiry_date = _parse_date(row.get("expiry_date"))
         expiry_state = _expiry_state(expiry_date, effective_today)
         record_id = int(row["id"])
@@ -225,7 +227,7 @@ def reagent_rows_to_inventory_frame(
                 "Batch number": _text(row.get("lot_number")),
                 "Specification": _text(row.get("specification")),
                 "Quantity": quantity,
-                "Unit": _text(row.get("quantity_unit"), default="unit"),
+                "Volume (mL)": volume_ml,
                 "Expiry date": expiry_date.isoformat() if expiry_date else "Not recorded",
                 "Storage location": _text(row.get("location")),
                 "SMILES": _text(row.get("smiles"), default="Not available"),

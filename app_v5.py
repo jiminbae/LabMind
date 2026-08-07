@@ -70,7 +70,7 @@ ADD_STATE_KEYS = {
     "add_field_manufacturer",
     "add_field_expiry_date",
     "add_field_quantity",
-    "add_field_unit",
+    "add_field_volume_ml",
     "add_field_confidence",
 }
 
@@ -1899,334 +1899,6 @@ def apply_theme() -> None:
             }
         }
 
-        /* LabMind visual refinement: keep the product task ahead of the pitch. */
-        .hero {
-            gap: clamp(28px, 4vw, 48px);
-            grid-template-columns: minmax(0, 1.25fr) minmax(310px, .75fr);
-            padding: 22px 0 18px;
-        }
-
-        .hero-kicker {
-            font-size: 11px;
-            margin-bottom: 9px;
-        }
-
-        .hero-title {
-            font-size: clamp(38px, 4.2vw, 50px);
-            line-height: 1.03;
-        }
-
-        .hero-copy {
-            font-size: 15px;
-            line-height: 1.5;
-            margin-top: 12px;
-        }
-
-        .capability-rail {
-            border-radius: 16px;
-            box-shadow: 0 8px 24px rgba(20, 32, 43, .045);
-            padding: 4px;
-        }
-
-        .capability {
-            gap: 2px 9px;
-            grid-template-columns: 28px 1fr;
-            padding: 10px 11px;
-        }
-
-        .capability > span {
-            border-radius: 8px;
-            font-size: 10px;
-            height: 28px;
-            width: 28px;
-        }
-
-        .capability strong {
-            font-size: 13px;
-        }
-
-        .capability small {
-            font-size: 11.5px;
-        }
-
-        .st-key-primary_view {
-            margin-bottom: var(--space-4);
-        }
-
-        .st-key-primary_view [role="radiogroup"],
-        .st-key-primary_view div[data-testid="stSegmentedControl"] > div,
-        .st-key-primary_view div[data-testid="stButtonGroup"] [role="radiogroup"] {
-            background: #e9eef2 !important;
-            border: 1px solid rgba(20, 32, 43, .08) !important;
-            border-radius: 14px !important;
-            box-shadow: inset 0 1px 2px rgba(20, 32, 43, .035) !important;
-            max-width: 520px;
-            padding: 4px !important;
-        }
-
-        .st-key-primary_view button[data-variant="segmented_control"],
-        .st-key-primary_view div[data-testid="stSegmentedControl"] button,
-        .st-key-primary_view div[data-testid="stButtonGroup"]
-        button[data-variant="segmented_control"] {
-            border: 0 !important;
-            border-radius: 10px !important;
-            min-height: 44px !important;
-        }
-
-        .st-key-primary_view button[data-variant="segmented_control"][data-selected],
-        .st-key-primary_view button[data-variant="segmented_control"][aria-checked="true"],
-        .st-key-primary_view div[data-testid="stSegmentedControl"] button[aria-pressed="true"],
-        .st-key-primary_view div[data-testid="stButtonGroup"]
-        button[data-variant="segmented_control"][data-selected],
-        .st-key-primary_view div[data-testid="stButtonGroup"]
-        button[data-variant="segmented_control"][aria-checked="true"] {
-            background: #fff !important;
-            border: 0 !important;
-            box-shadow: 0 1px 5px rgba(20, 32, 43, .13) !important;
-            color: var(--accent) !important;
-        }
-
-        .section-eyebrow {
-            margin-bottom: 6px;
-        }
-
-        .section-title {
-            font-size: clamp(27px, 2.45vw, 34px);
-        }
-
-        .section-copy {
-            margin-top: 6px;
-        }
-
-        .stepper {
-            margin: 8px 0 14px;
-        }
-
-        .st-key-intake_start {
-            margin-top: 0;
-            max-width: 760px;
-        }
-
-        .st-key-upload_panel,
-        .st-key-query_panel {
-            padding: 24px;
-        }
-
-        div[data-testid="stFileUploader"] section {
-            align-items: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            min-height: 164px;
-            text-align: center;
-        }
-
-        div[data-testid="stFileUploaderDropzoneInstructions"] {
-            align-items: center;
-            display: flex;
-            flex-direction: column;
-            text-align: center;
-        }
-
-        div[data-testid="stFileUploader"] section > div {
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-        }
-
-        .upload-hint {
-            justify-content: center;
-            text-align: center;
-        }
-
-        .st-key-query_mode {
-            margin-bottom: 8px;
-            max-width: 520px;
-        }
-
-        .st-key-query_mode [role="radiogroup"],
-        .st-key-query_mode div[data-testid="stSegmentedControl"] > div {
-            background: #e9eef2;
-            border-color: rgba(20, 32, 43, .08);
-            border-radius: 12px;
-            padding: 4px;
-        }
-
-        .st-key-query_mode button[data-variant="segmented_control"][data-selected],
-        .st-key-query_mode button[data-variant="segmented_control"][aria-checked="true"],
-        .st-key-query_mode div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
-            background: #fff !important;
-            box-shadow: 0 1px 4px rgba(20, 32, 43, .12) !important;
-        }
-
-        .st-key-query_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
-        > div[data-testid="stColumn"]:first-child {
-            flex: 3 1 0 !important;
-        }
-
-        .st-key-query_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
-        > div[data-testid="stColumn"]:last-child {
-            flex: 1 1 0 !important;
-        }
-
-        .st-key-clear_basic_query button,
-        .st-key-clear_basic_query button:disabled {
-            background: transparent !important;
-            border-color: transparent !important;
-            color: var(--secondary) !important;
-            box-shadow: none !important;
-        }
-
-        .st-key-clear_basic_query button:not(:disabled):hover {
-            background: rgba(20, 32, 43, .055) !important;
-            border-color: transparent !important;
-        }
-
-        .query-ready {
-            align-items: center;
-            min-height: 80px;
-            text-align: center;
-        }
-
-        @media (max-width: 820px) {
-            .hero {
-                gap: 14px;
-                padding: 18px 0 14px;
-            }
-
-            .hero-title {
-                font-size: clamp(34px, 7.4vw, 42px);
-            }
-
-            .hero-copy {
-                font-size: 15px;
-                margin-top: 10px;
-            }
-
-            .capability {
-                padding: 9px 7px;
-            }
-
-            .capability strong {
-                font-size: 12px;
-                line-height: 1.25;
-            }
-
-            .capability small {
-                display: none;
-            }
-
-            .st-key-primary_view {
-                margin-bottom: 20px;
-            }
-
-            .st-key-upload_panel,
-            .st-key-query_panel {
-                padding: 18px;
-            }
-
-            div[data-testid="stFileUploader"] section {
-                min-height: 152px;
-            }
-        }
-
-        @media (max-width: 460px) {
-            .topbar {
-                min-height: 54px;
-                padding-bottom: 10px;
-            }
-
-            .brand-mark {
-                height: 34px;
-                width: 34px;
-            }
-
-            .hero {
-                gap: 12px;
-                padding: 16px 0 13px;
-            }
-
-            .hero-kicker {
-                font-size: 10px;
-                margin-bottom: 7px;
-            }
-
-            .hero-title {
-                font-size: 30px;
-                line-height: 1.05;
-            }
-
-            .hero-copy {
-                font-size: 14px;
-                line-height: 1.48;
-            }
-
-            .capability-rail {
-                gap: 0;
-                padding: 3px;
-            }
-
-            .capability {
-                display: grid;
-                gap: 5px;
-                grid-template-columns: 1fr;
-                justify-items: center;
-                min-width: 0;
-                padding: 8px 4px;
-                text-align: center;
-            }
-
-            .capability > span {
-                flex: none;
-                font-size: 9.5px;
-                height: 24px;
-                width: 24px;
-            }
-
-            .capability strong {
-                font-size: 11.5px;
-                line-height: 1.22;
-            }
-
-            .section-title {
-                font-size: 26px;
-            }
-
-            .section-copy {
-                font-size: 14px;
-            }
-
-            .step {
-                font-size: 11px;
-                line-height: 1.2;
-            }
-
-            .step strong {
-                font-size: 9.5px;
-                height: 24px;
-                width: 24px;
-            }
-
-            .st-key-primary_view button[data-variant="segmented_control"],
-            .st-key-primary_view div[data-testid="stSegmentedControl"] button {
-                font-size: 13px;
-            }
-
-            .st-key-query_mode button[data-variant="segmented_control"],
-            .st-key-query_mode div[data-testid="stSegmentedControl"] button {
-                font-size: 12.5px;
-            }
-
-            .metric-label {
-                font-size: 11px;
-            }
-
-            .st-key-query_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
-            > div[data-testid="stColumn"] {
-                flex: 1 1 100% !important;
-            }
-        }
-
         @media (prefers-reduced-motion: reduce) {
             *,
             *::before,
@@ -2268,8 +1940,8 @@ def get_sample_extraction_result() -> dict[str, Any]:
         "batch_number": "",
         "manufacturer": "",
         "expiry_date": None,
-        "quantity": 0.0,
-        "unit": "mL",
+        "quantity": 0,
+        "volume_ml": 0.0,
         "confidence": 0,
     }
 
@@ -2431,6 +2103,7 @@ def filter_sample_inventory(
     storage_location: str = "All locations",
     expiry_state: str = "All expiry states",
     minimum_quantity: int = 0,
+    minimum_volume_ml: float = 0,
 ) -> pd.DataFrame:
     filtered = frame.copy()
     query = search_text.strip().lower()
@@ -2454,6 +2127,7 @@ def filter_sample_inventory(
     if expiry_state != "All expiry states":
         filtered = filtered[filtered["Expiry state"] == expiry_state]
     filtered = filtered[filtered["Quantity"] >= minimum_quantity]
+    filtered = filtered[filtered["Volume (mL)"] >= minimum_volume_ml]
     return filtered.reset_index(drop=True)
 
 
@@ -3023,19 +2697,20 @@ def render_extraction_step() -> None:
     with right:
         st.text_input("Manufacturer", key="add_field_manufacturer")
         st.date_input("Expiry date", key="add_field_expiry_date")
-        quantity_col, unit_col = st.columns([1.2, 1])
+        quantity_col, volume_col = st.columns(2)
         with quantity_col:
             st.number_input(
-                "Quantity",
-                min_value=0.0,
-                step=1.0,
+                "Quantity (containers)",
+                min_value=0,
+                step=1,
                 key="add_field_quantity",
             )
-        with unit_col:
-            st.selectbox(
-                "Unit",
-                ["mL", "L", "g", "kg", "mg", "units"],
-                key="add_field_unit",
+        with volume_col:
+            st.number_input(
+                "Volume per container (mL)",
+                min_value=0.0,
+                step=1.0,
+                key="add_field_volume_ml",
             )
         st.slider(
             "Recognition confidence",
@@ -3066,7 +2741,10 @@ def render_order_card(order: dict[str, Any], selected: bool = False) -> None:
     name = str(order.get("name") or order.get("chemical_name") or "Not recorded")
     cas_number = str(order.get("cas_number") or "Not recorded")
     manufacturer = str(order.get("manufacturer") or "Not recorded")
-    quantity = f'{float(order.get("quantity") or 0):g} {order.get("quantity_unit") or order.get("unit") or "unit"}'
+    quantity = int(order.get("quantity") or 0)
+    volume_ml = float(order.get("volume_ml") or 0)
+    container_label = "container" if quantity == 1 else "containers"
+    amount = f"{quantity} {container_label} · {volume_ml:g} mL each"
     raw_score = order.get("score")
     score = f"{float(raw_score):.0%}" if raw_score is not None else "Review"
     explanation = str(
@@ -3080,7 +2758,7 @@ def render_order_card(order: dict[str, Any], selected: bool = False) -> None:
             <div class="order-name">{escaped(name)}</div>
             <div class="order-detail">
                 CAS {escaped(cas_number)} · {escaped(manufacturer)} ·
-                {escaped(quantity)}<br>{escaped(explanation)}
+                {escaped(amount)}<br>{escaped(explanation)}
             </div>
         </div>
         """,
@@ -3094,7 +2772,8 @@ def render_pending_order_import() -> None:
     with st.expander("Import orders awaiting receipt"):
         st.caption(
             "Bridge LabMind to an order-system export. Required: "
-            "order_reference (or order_id) and chemical_name (or name)."
+            "order_reference (or order_id) and chemical_name (or name). "
+            "Optional: quantity (container count) and volume_ml (per container)."
         )
         uploaded_orders = st.file_uploader(
             "Pending-order CSV",
@@ -3132,7 +2811,8 @@ def _current_order_match_input() -> dict[str, Any]:
         "manufacturer": st.session_state.get("add_field_manufacturer", ""),
         "specification": st.session_state.get("add_field_specification", ""),
         "quantity": st.session_state.get("add_field_quantity", 0),
-        "quantity_unit": st.session_state.get("add_field_unit", "unit"),
+        "quantity_unit": "unit",
+        "volume_ml": st.session_state.get("add_field_volume_ml", 0),
     }
 
 
@@ -3205,10 +2885,8 @@ def render_order_match_step() -> None:
                     "Order": candidate["order_reference"],
                     "Chemical": candidate.get("name"),
                     "Manufacturer": candidate.get("manufacturer"),
-                    "Quantity": (
-                        f'{float(candidate.get("quantity") or 0):g} '
-                        f'{candidate.get("quantity_unit") or "unit"}'
-                    ),
+                    "Quantity": int(candidate.get("quantity") or 0),
+                    "Volume (mL)": float(candidate.get("volume_ml") or 0),
                     "Match": f'{float(candidate.get("score") or 0):.0%}',
                 }
                 for candidate in candidates
@@ -3410,7 +3088,7 @@ def current_registration_payload() -> dict[str, Any]:
         "manufacturer": st.session_state.get("add_field_manufacturer", ""),
         "expiry_date": expiry_value,
         "quantity": st.session_state.get("add_field_quantity", 0),
-        "unit": st.session_state.get("add_field_unit", ""),
+        "volume_ml": st.session_state.get("add_field_volume_ml", 0),
         "confidence": st.session_state.get("add_field_confidence", 0) / 100,
         "extraction_source": st.session_state.get(
             "add_extraction_source", "Manual entry"
@@ -3520,7 +3198,8 @@ def render_confirmation_step() -> None:
         ("CAS number", payload["cas_number"]),
         ("Batch", payload["batch_number"]),
         ("Manufacturer", payload["manufacturer"]),
-        ("Quantity", f'{payload["quantity"]:g} {payload["unit"]}'),
+        ("Quantity", f'{payload["quantity"]} container(s)'),
+        ("Volume", f'{payload["volume_ml"]:g} mL per container'),
         ("Pending order", payload["pending_order"] or "Selection required"),
     ]
     identity_summary = "".join(
@@ -3818,7 +3497,7 @@ def render_inventory_results(
         "CAS number",
         "Manufacturer",
         "Quantity",
-        "Unit",
+        "Volume (mL)",
         "Status",
         "Expiry date",
         "Storage location",
@@ -3835,6 +3514,9 @@ def render_inventory_results(
         column_config={
             "Expiry date": st.column_config.DateColumn("Expiry date", format="YYYY-MM-DD"),
             "Quantity": st.column_config.NumberColumn("Quantity", format="%d"),
+            "Volume (mL)": st.column_config.NumberColumn(
+                "Volume (mL)", format="%.1f"
+            ),
         },
     )
     st.download_button(
@@ -3870,6 +3552,7 @@ def clear_query_state() -> None:
         "query_storage",
         "query_expiry",
         "query_minimum",
+        "query_minimum_volume_ml",
         "query_results",
         "query_natural_text",
         "query_natural_plan",
@@ -3884,7 +3567,7 @@ def render_basic_query(frame: pd.DataFrame) -> pd.DataFrame:
         placeholder="Chemical, CAS number, batch, or record ID",
         key="query_search",
     )
-    filter_cols = st.columns(4)
+    filter_cols = st.columns(3)
     with filter_cols[0]:
         manufacturer = st.selectbox(
             "Manufacturer",
@@ -3903,12 +3586,20 @@ def render_basic_query(frame: pd.DataFrame) -> pd.DataFrame:
             ["All expiry states", "Current", "Expiring soon", "Expired"],
             key="query_expiry",
         )
-    with filter_cols[3]:
+    amount_cols = st.columns(2)
+    with amount_cols[0]:
         minimum = st.number_input(
-            "Minimum quantity",
+            "Minimum quantity (containers)",
             min_value=0,
             step=1,
             key="query_minimum",
+        )
+    with amount_cols[1]:
+        minimum_volume_ml = st.number_input(
+            "Minimum volume per container (mL)",
+            min_value=0.0,
+            step=1.0,
+            key="query_minimum_volume_ml",
         )
     search_col, clear_col = st.columns([1, 1])
     with search_col:
@@ -3930,6 +3621,7 @@ def render_basic_query(frame: pd.DataFrame) -> pd.DataFrame:
                 or storage != "All locations"
                 or expiry != "All expiry states"
                 or minimum > 0
+                or minimum_volume_ml > 0
             ),
         )
     if search_clicked or "query_results" not in st.session_state:
@@ -3941,6 +3633,7 @@ def render_basic_query(frame: pd.DataFrame) -> pd.DataFrame:
                 storage_location=storage,
                 expiry_state=expiry,
                 minimum_quantity=int(minimum),
+                minimum_volume_ml=float(minimum_volume_ml),
             )
     return st.session_state["query_results"]
 
@@ -4117,7 +3810,7 @@ def render_query_tab() -> None:
     if mode == "Basic filters" or st.session_state.get("query_natural_plan"):
         render_inventory_results(results, inventory_is_empty=frame.empty)
     st.markdown(
-        '<p class="quiet-note">LabMind may translate your intent, but structure, quantity, status, and expiry always come from loaded inventory records.</p>',
+        '<p class="quiet-note">LabMind may translate your intent, but structure, container quantity, volume, status, and expiry always come from loaded inventory records.</p>',
         unsafe_allow_html=True,
     )
 

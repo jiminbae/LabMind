@@ -53,6 +53,7 @@ def map_intake_payload(data: Mapping[str, Any]) -> dict[str, Any]:
         "manufacturer": data.get("manufacturer"),
         "quantity": data.get("quantity"),
         "quantity_unit": _first_value(data, "quantity_unit", "unit"),
+        "volume_ml": _first_value(data, "volume_ml", "volume"),
         "location": data.get("location"),
         "expiry_date": data.get("expiry_date"),
         "smiles": data.get("smiles"),

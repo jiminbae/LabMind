@@ -28,8 +28,9 @@ class DatabaseUtilityTests(unittest.TestCase):
             "catalog_number": "WATER-1",
             "lot_number": "LOT-1",
             "manufacturer": "Example",
-            "quantity": 2.5,
-            "quantity_unit": "L",
+            "quantity": 2,
+            "quantity_unit": "unit",
+            "volume_ml": 2500,
         }
 
     def tearDown(self) -> None:
@@ -47,7 +48,8 @@ class DatabaseUtilityTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["id"], reagent_id)
         self.assertEqual(rows[0]["cas_number"], "7732-18-5")
-        self.assertEqual(rows[0]["quantity"], 2.5)
+        self.assertEqual(rows[0]["quantity"], 2)
+        self.assertEqual(rows[0]["volume_ml"], 2500)
 
     def test_unconfirmed_reagent_is_rejected_without_creating_database(self) -> None:
         with self.assertRaisesRegex(
@@ -67,12 +69,12 @@ class DatabaseUtilityTests(unittest.TestCase):
         self.assertFalse(self.database_path.exists())
 
     def test_negative_and_non_finite_quantities_are_rejected(self) -> None:
-        for quantity in (-1, "not-a-number", float("inf"), True):
+        for quantity in (-1, 1.5, "not-a-number", float("inf"), True):
             with self.subTest(quantity=quantity):
                 reagent = {**self.base_reagent, "quantity": quantity}
                 with self.assertRaisesRegex(
                     ReagentValidationError,
-                    "non-negative number",
+                    "non-negative whole number",
                 ):
                     insert_reagent(
                         reagent,
@@ -81,6 +83,37 @@ class DatabaseUtilityTests(unittest.TestCase):
                     )
 
         self.assertFalse(self.database_path.exists())
+
+    def test_negative_and_non_finite_volumes_are_rejected(self) -> None:
+        for volume_ml in (-1, "not-a-number", float("inf"), True):
+            with self.subTest(volume_ml=volume_ml):
+                reagent = {**self.base_reagent, "volume_ml": volume_ml}
+                with self.assertRaisesRegex(
+                    ReagentValidationError,
+                    "volume_ml must be a non-negative number",
+                ):
+                    insert_reagent(
+                        reagent,
+                        self.database_path,
+                        confirmed=True,
+                    )
+
+        self.assertFalse(self.database_path.exists())
+
+    def test_legacy_litre_amount_is_converted_to_count_and_volume(self) -> None:
+        reagent = {
+            **self.base_reagent,
+            "quantity": 2.5,
+            "quantity_unit": "L",
+        }
+        reagent.pop("volume_ml")
+
+        insert_reagent(reagent, self.database_path, confirmed=True)
+        stored = list_reagents(self.database_path)[0]
+
+        self.assertEqual(stored["quantity"], 1)
+        self.assertEqual(stored["quantity_unit"], "unit")
+        self.assertEqual(stored["volume_ml"], 2500)
 
     def test_same_cas_can_store_multiple_lots_and_returns_newest_first(self) -> None:
         first_id = insert_reagent(
@@ -152,6 +185,7 @@ class DatabaseUtilityTests(unittest.TestCase):
         self.assertEqual(row["cas_number"], "67-64-1")
         self.assertEqual(row["quantity"], 0)
         self.assertEqual(row["quantity_unit"], "unit")
+        self.assertEqual(row["volume_ml"], 0)
         self.assertEqual(row["expiry_date"], "2027-07-27")
         self.assertEqual(row["chemical_tags"], [])
         self.assertEqual(row["hazard_labels"], [])
@@ -192,7 +226,7 @@ class DatabaseUtilityTests(unittest.TestCase):
 
         with self.assertRaises(IntakeConflictError):
             insert_reagent(
-                {**reagent, "quantity": 3.0},
+                {**reagent, "quantity": 3},
                 self.database_path,
                 confirmed=True,
             )

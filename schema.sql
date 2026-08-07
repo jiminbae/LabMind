@@ -20,8 +20,10 @@ CREATE TABLE IF NOT EXISTS reagents (
     specification TEXT,
     lot_number TEXT,
     manufacturer TEXT,
-    quantity REAL NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+    quantity INTEGER NOT NULL DEFAULT 0
+        CHECK (quantity >= 0 AND quantity = CAST(quantity AS INTEGER)),
     quantity_unit TEXT NOT NULL DEFAULT 'unit',
+    volume_ml REAL NOT NULL DEFAULT 0 CHECK (volume_ml >= 0),
     location TEXT,
     expiry_date DATE,
     smiles TEXT,
@@ -140,8 +142,10 @@ CREATE TABLE IF NOT EXISTS pending_orders (
     catalog_number TEXT,
     specification TEXT,
     manufacturer TEXT,
-    quantity REAL NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+    quantity INTEGER NOT NULL DEFAULT 0
+        CHECK (quantity >= 0 AND quantity = CAST(quantity AS INTEGER)),
     quantity_unit TEXT NOT NULL DEFAULT 'unit',
+    volume_ml REAL NOT NULL DEFAULT 0 CHECK (volume_ml >= 0),
     status TEXT NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending', 'matched', 'received', 'cancelled')),
     received_reagent_id INTEGER REFERENCES reagents(id) ON DELETE SET NULL,

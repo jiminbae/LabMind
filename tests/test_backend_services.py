@@ -35,8 +35,9 @@ class DurableBackendServiceTests(unittest.TestCase):
             "specification": "ACS grade",
             "lot_number": "LOT-42",
             "manufacturer": "Example Chemical",
-            "quantity": 500,
-            "quantity_unit": "mL",
+            "quantity": 1,
+            "quantity_unit": "unit",
+            "volume_ml": 500,
         }
 
     def tearDown(self) -> None:
@@ -99,8 +100,8 @@ class DurableBackendServiceTests(unittest.TestCase):
             "catalog_number": "A-001",
             "specification": "ACS grade",
             "manufacturer": "Example Chemical",
-            "quantity": 500,
-            "unit": "mL",
+            "quantity": 1,
+            "volume_ml": 500,
         }
 
         created = create_pending_order(order, self.database_path, source="csv")
@@ -171,8 +172,8 @@ class DurableBackendServiceTests(unittest.TestCase):
             "batch_number": "LOT-42",
             "manufacturer": "Example Chemical",
             "expiry_date": "2028-07-01",
-            "quantity": 500,
-            "unit": "mL",
+            "quantity": 1,
+            "volume_ml": 500,
             "confidence": 0.91,
             "pending_order": "PO-2026-1842",
             "chemical_labels": ["Solvent"],

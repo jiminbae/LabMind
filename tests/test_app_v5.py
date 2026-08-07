@@ -85,8 +85,8 @@ class AppV5HelpersTest(unittest.TestCase):
         manufacturer: str = "Sigma-Aldrich",
         batch_number: str = "LOT-ETH-01",
         specification: str = "ACS grade",
-        quantity: float = 500,
-        unit: str = "mL",
+        quantity: int = 2,
+        volume_ml: float = 500,
         expiry_date: str | None = None,
         labels: list[str] | None = None,
         constraints: list[str] | None = None,
@@ -108,7 +108,7 @@ class AppV5HelpersTest(unittest.TestCase):
             "expiry_date": expiry_date
             or (date.today() + timedelta(days=365)).isoformat(),
             "quantity": quantity,
-            "unit": unit,
+            "volume_ml": volume_ml,
             "confidence": 0.91,
             "extraction_source": "Manual test entry",
             "extraction_rationale": "Reviewed test receipt.",
@@ -150,7 +150,7 @@ class AppV5HelpersTest(unittest.TestCase):
                 "Batch number",
                 "Specification",
                 "Quantity",
-                "Unit",
+                "Volume (mL)",
                 "Expiry date",
                 "Storage location",
                 "SMILES",
@@ -203,7 +203,8 @@ class AppV5HelpersTest(unittest.TestCase):
                 cas_number="67-56-1",
                 batch_number="LOT-MEOH-01",
                 manufacturer="Fisher Scientific",
-                quantity=40,
+                quantity=1,
+                volume_ml=40,
                 receipt_key="test:67-56-1:LOT-MEOH-01",
             )
         )
@@ -213,11 +214,13 @@ class AppV5HelpersTest(unittest.TestCase):
             frame,
             search_text="ethanol",
             manufacturer="Sigma-Aldrich",
-            minimum_quantity=100,
+            minimum_quantity=1,
+            minimum_volume_ml=100,
         )
 
         self.assertEqual(result["Chemical name"].tolist(), ["Ethanol"])
-        self.assertEqual(result["Quantity"].tolist(), [500.0])
+        self.assertEqual(result["Quantity"].tolist(), [2])
+        self.assertEqual(result["Volume (mL)"].tolist(), [500.0])
 
     def test_inventory_view_renders_records_without_expiry_dates(self) -> None:
         self.register(self.reagent_payload(expiry_date=None))
@@ -290,7 +293,6 @@ class AppV5HelpersTest(unittest.TestCase):
                 batch_number="LOT-BINAP-01",
                 manufacturer="Strem",
                 quantity=2,
-                unit="g",
                 labels=[
                     "Chiral ligand",
                     "Phosphine ligand",
@@ -307,7 +309,6 @@ class AppV5HelpersTest(unittest.TestCase):
                 batch_number="LOT-SEGPHOS-01",
                 manufacturer="TCI",
                 quantity=0,
-                unit="g",
                 expiry_date=(date.today() - timedelta(days=1)).isoformat(),
                 labels=[
                     "Chiral ligand",
@@ -552,9 +553,39 @@ app_v5.render_storage_step()
         self.assertEqual(state["add_stage"], "Order")
         self.assertEqual(state["add_field_chemical_name"], "")
         self.assertEqual(state["add_field_cas_number"], "")
-        self.assertEqual(state["add_field_quantity"], 0.0)
+        self.assertEqual(state["add_field_quantity"], 0)
+        self.assertEqual(state["add_field_volume_ml"], 0.0)
         self.assertEqual(state["add_extraction_notice"]["status"], "manual")
         self.assertIn("manually", state["add_extraction_notice"]["message"].lower())
+
+    def test_intake_uses_integer_container_quantity_and_separate_ml_volume(self) -> None:
+        app = AppTest.from_string(
+            """
+import streamlit as st
+from app_v5 import get_sample_extraction_result, render_extraction_step
+
+for field, value in get_sample_extraction_result().items():
+    st.session_state[f"add_field_{field}"] = value
+st.session_state["add_extraction_complete"] = True
+render_extraction_step()
+"""
+        ).run(timeout=20)
+
+        self.assertEqual(len(app.exception), 0)
+        quantity = next(
+            widget
+            for widget in app.number_input
+            if widget.label == "Quantity (containers)"
+        )
+        volume = next(
+            widget
+            for widget in app.number_input
+            if widget.label == "Volume per container (mL)"
+        )
+        self.assertIsInstance(quantity.value, int)
+        self.assertEqual(quantity.value, 0)
+        self.assertIsInstance(volume.value, float)
+        self.assertEqual(volume.value, 0.0)
 
     def test_partial_reextraction_preserves_manual_and_nonvision_values(self) -> None:
         app = AppTest.from_string(
@@ -566,7 +597,8 @@ from backend.vision_service import LabelExtractionResult
 
 st.session_state["add_field_cas_number"] = "64-17-5"
 st.session_state["add_field_manufacturer"] = "Reviewed manufacturer"
-st.session_state["add_field_quantity"] = 25.0
+st.session_state["add_field_quantity"] = 25
+st.session_state["add_field_volume_ml"] = 500.0
 st.session_state["add_field_expiry_date"] = date(2027, 1, 2)
 
 original_extract_label_fields = app_v5.extract_label_fields
@@ -597,7 +629,8 @@ st.write("complete")
         self.assertEqual(state["add_field_cas_number"], "64-17-5")
         self.assertEqual(state["add_field_manufacturer"], "Reviewed manufacturer")
         self.assertEqual(state["add_field_batch_number"], "LOT-NEW")
-        self.assertEqual(state["add_field_quantity"], 25.0)
+        self.assertEqual(state["add_field_quantity"], 25)
+        self.assertEqual(state["add_field_volume_ml"], 500.0)
         self.assertEqual(state["add_field_expiry_date"], date(2027, 1, 2))
 
     def test_partial_extraction_notice_is_a_warning(self) -> None:
@@ -658,7 +691,6 @@ render_extraction_step()
                     batch_number=batch_number,
                     manufacturer="Strem",
                     quantity=2,
-                    unit="g",
                     labels=[
                         "Chiral ligand",
                         "Phosphine ligand",

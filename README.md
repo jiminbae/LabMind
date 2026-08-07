@@ -25,7 +25,8 @@ streamlit run app.py
   then intersected with available, non-expired inventory
 
 The language layer never determines whether an item is in stock. Availability,
-quantity, expiry state, record IDs, order completion, and storage locations
+container quantity, per-container volume, expiry state, record IDs, order
+completion, and storage locations
 remain deterministic database or rule-engine decisions.
 
 ## AI setup
@@ -55,7 +56,10 @@ storage location.
 
 Step 3 accepts a CSV export with `order_reference` (or `order_id`) and
 `chemical_name` (or `name`). Optional supported columns are `cas_number`,
-`catalog_number`, `specification`, `manufacturer`, `quantity`, and `unit`.
+`catalog_number`, `specification`, `manufacturer`, integer `quantity`, and
+`volume_ml`. Here, quantity means the number of containers and volume means the
+millilitres in each container. Legacy CSV rows that used `quantity` with an
+`mL` or `L` unit are converted automatically.
 The importer is idempotent by order reference. Exact CAS conflicts are never
 matched, and ambiguous candidates require a human selection.
 
@@ -67,7 +71,6 @@ file persistence, so do not use this default database as the durable source of
 truth for a real laboratory. Production deployment requires an externally
 managed database and the relevant credentials; those are intentionally not
 committed to this repository.
-
 
 ### Render
 

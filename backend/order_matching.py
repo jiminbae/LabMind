@@ -54,24 +54,62 @@ def _first_value(data: Mapping[str, Any], *keys: str) -> object:
     return None
 
 
-def _quantity(value: object) -> float:
+def _quantity(value: object) -> int:
     if value is None or value == "":
-        return 0.0
+        return 0
     if isinstance(value, bool):
         raise PendingOrderValidationError(
-            "quantity must be a non-negative finite number."
+            "quantity must be a non-negative whole number."
         )
     try:
         normalized = float(value)
     except (TypeError, ValueError) as exc:
         raise PendingOrderValidationError(
-            "quantity must be a non-negative finite number."
+            "quantity must be a non-negative whole number."
+        ) from exc
+    if not math.isfinite(normalized) or normalized < 0 or not normalized.is_integer():
+        raise PendingOrderValidationError(
+            "quantity must be a non-negative whole number."
+        )
+    return int(normalized)
+
+
+def _volume_ml(value: object) -> float:
+    if value is None or value == "":
+        return 0.0
+    if isinstance(value, bool):
+        raise PendingOrderValidationError(
+            "volume_ml must be a non-negative finite number."
+        )
+    try:
+        normalized = float(value)
+    except (TypeError, ValueError) as exc:
+        raise PendingOrderValidationError(
+            "volume_ml must be a non-negative finite number."
         ) from exc
     if not math.isfinite(normalized) or normalized < 0:
         raise PendingOrderValidationError(
-            "quantity must be a non-negative finite number."
+            "volume_ml must be a non-negative finite number."
         )
     return normalized
+
+
+def _quantity_and_volume(data: Mapping[str, Any]) -> tuple[int, float]:
+    """Normalize the new count/volume contract and legacy amount-plus-unit CSVs."""
+
+    raw_volume = _first_value(data, "volume_ml", "volume")
+    if raw_volume is not None:
+        return _quantity(data.get("quantity")), _volume_ml(raw_volume)
+
+    legacy_unit = _optional_text(
+        _first_value(data, "quantity_unit", "unit"),
+        "quantity_unit",
+    )
+    if legacy_unit and legacy_unit.casefold() in {"ml", "l"}:
+        legacy_volume = _volume_ml(data.get("quantity"))
+        multiplier = 1000 if legacy_unit.casefold() == "l" else 1
+        return (1 if legacy_volume > 0 else 0), legacy_volume * multiplier
+    return _quantity(data.get("quantity")), 0.0
 
 
 def _optional_cas(value: object) -> str | None:
@@ -128,10 +166,7 @@ def _normalize_order(
         _first_value(data, "name", "chemical_name"),
         "name",
     )
-    quantity_unit = _optional_text(
-        _first_value(data, "quantity_unit", "unit"),
-        "quantity_unit",
-    )
+    quantity, volume_ml = _quantity_and_volume(data)
     return {
         "order_reference": order_reference,
         "name": name,
@@ -143,8 +178,9 @@ def _normalize_order(
             data.get("specification"), "specification"
         ),
         "manufacturer": _optional_text(data.get("manufacturer"), "manufacturer"),
-        "quantity": _quantity(data.get("quantity")),
-        "quantity_unit": quantity_unit or "unit",
+        "quantity": quantity,
+        "quantity_unit": "unit",
+        "volume_ml": volume_ml,
         "status": _status(data.get("status")),
         "source": _optional_text(
             source if source is not None else data.get("source"),
@@ -173,6 +209,7 @@ def _order_fields_match(existing: sqlite3.Row, incoming: Mapping[str, Any]) -> b
         "manufacturer",
         "quantity",
         "quantity_unit",
+        "volume_ml",
         "status",
         "source",
         "raw_payload",
@@ -200,12 +237,13 @@ def _upsert_pending_order(
                 manufacturer,
                 quantity,
                 quantity_unit,
+                volume_ml,
                 status,
                 source,
                 raw_payload,
                 created_at,
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """,
             (
                 incoming["order_reference"],
@@ -216,6 +254,7 @@ def _upsert_pending_order(
                 incoming["manufacturer"],
                 incoming["quantity"],
                 incoming["quantity_unit"],
+                incoming["volume_ml"],
                 incoming["status"],
                 incoming["source"],
                 incoming["raw_payload"],
@@ -256,6 +295,7 @@ def _upsert_pending_order(
             manufacturer = ?,
             quantity = ?,
             quantity_unit = ?,
+            volume_ml = ?,
             status = ?,
             source = ?,
             raw_payload = ?,
@@ -270,6 +310,7 @@ def _upsert_pending_order(
             incoming["manufacturer"],
             incoming["quantity"],
             incoming["quantity_unit"],
+            incoming["volume_ml"],
             incoming["status"],
             incoming["source"],
             incoming["raw_payload"],
@@ -389,6 +430,7 @@ def _normalize_receipt_for_match(data: Mapping[str, Any]) -> dict[str, Any]:
         raise PendingOrderValidationError(
             "Receipt matching requires a chemical name or a valid CAS number."
         )
+    quantity, volume_ml = _quantity_and_volume(data)
     return {
         "name": name,
         "cas_number": cas_number,
@@ -399,28 +441,39 @@ def _normalize_receipt_for_match(data: Mapping[str, Any]) -> dict[str, Any]:
             data.get("specification"), "specification"
         ),
         "manufacturer": _optional_text(data.get("manufacturer"), "manufacturer"),
-        "quantity": _quantity(data.get("quantity")),
-        "quantity_unit": _optional_text(
-            _first_value(data, "quantity_unit", "unit"), "quantity_unit"
-        )
-        or "unit",
+        "quantity": quantity,
+        "quantity_unit": "unit",
+        "volume_ml": volume_ml,
     }
 
 
 def _quantity_score(receipt: Mapping[str, Any], order: Mapping[str, Any]) -> float:
-    if _comparable(receipt["quantity_unit"]) != _comparable(order["quantity_unit"]):
-        return 0.0
     expected = float(order["quantity"])
     observed = float(receipt["quantity"])
     if expected == observed:
-        return 0.03
+        return 0.015
     if expected == 0:
         return 0.0
     relative_difference = abs(observed - expected) / abs(expected)
     if relative_difference <= 0.02:
-        return 0.03
-    if relative_difference <= 0.10:
         return 0.015
+    if relative_difference <= 0.10:
+        return 0.0075
+    return 0.0
+
+
+def _volume_score(receipt: Mapping[str, Any], order: Mapping[str, Any]) -> float:
+    expected = float(order["volume_ml"])
+    observed = float(receipt["volume_ml"])
+    if expected == observed:
+        return 0.015
+    if expected == 0:
+        return 0.0
+    relative_difference = abs(observed - expected) / abs(expected)
+    if relative_difference <= 0.02:
+        return 0.015
+    if relative_difference <= 0.10:
+        return 0.0075
     return 0.0
 
 
@@ -467,6 +520,10 @@ def _score_order_match(
     if quantity_score:
         score += quantity_score
         details.append("quantity compatible")
+    volume_score = _volume_score(receipt, order)
+    if volume_score:
+        score += volume_score
+        details.append("volume compatible")
     if _comparable(receipt["name"]) and _comparable(receipt["name"]) == _comparable(order["name"]):
         score += 0.01
         details.append("name exact")
@@ -506,6 +563,7 @@ def match_pending_orders(
                 "manufacturer": order["manufacturer"],
                 "quantity": order["quantity"],
                 "quantity_unit": order["quantity_unit"],
+                "volume_ml": order["volume_ml"],
                 "score": score,
                 "score_percent": f"{score:.0%}",
                 "explanation": "; ".join(details) + ".",

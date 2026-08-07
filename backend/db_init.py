@@ -12,7 +12,7 @@ from typing import Callable
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SCHEMA_PATH = PROJECT_ROOT / "schema.sql"
 DEFAULT_DB_PATH = PROJECT_ROOT / "inventory.db"
-DATABASE_SCHEMA_VERSION = 4
+DATABASE_SCHEMA_VERSION = 5
 
 
 class DatabaseMigrationError(RuntimeError):
@@ -240,11 +240,40 @@ def _migrate_pending_orders(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_quantity_and_volume(connection: sqlite3.Connection) -> None:
+    """Split legacy amount values into container count and volume in millilitres."""
+
+    for table_name in ("reagents", "pending_orders"):
+        existing_columns = _column_names(connection, table_name)
+        had_volume_column = "volume_ml" in existing_columns
+        _ensure_columns(
+            connection,
+            table_name,
+            {"volume_ml": "REAL NOT NULL DEFAULT 0 CHECK (volume_ml >= 0)"},
+        )
+        if had_volume_column:
+            continue
+        connection.execute(
+            f"""
+            UPDATE {table_name}
+            SET
+                volume_ml = CASE LOWER(TRIM(quantity_unit))
+                    WHEN 'ml' THEN quantity
+                    WHEN 'l' THEN quantity * 1000
+                    ELSE 0
+                END,
+                quantity = CASE WHEN quantity > 0 THEN 1 ELSE 0 END,
+                quantity_unit = 'unit'
+            """
+        )
+
+
 MIGRATIONS: tuple[tuple[int, Callable[[sqlite3.Connection], None]], ...] = (
     (1, lambda connection: None),
     (2, _migrate_intake_metadata),
     (3, _migrate_classification_cache),
     (4, _migrate_pending_orders),
+    (5, _migrate_quantity_and_volume),
 )
 
 

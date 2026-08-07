@@ -24,6 +24,7 @@ REAGENT_COLUMNS = (
     "manufacturer",
     "quantity",
     "quantity_unit",
+    "volume_ml",
     "location",
     "expiry_date",
     "smiles",
@@ -84,22 +85,53 @@ def _optional_alias(
     return value
 
 
-def _quantity(value: object) -> float:
+def _quantity(value: object) -> int:
     if value is None:
-        return 0.0
+        return 0
     if isinstance(value, bool):
-        raise ReagentValidationError("quantity must be a non-negative number.")
+        raise ReagentValidationError("quantity must be a non-negative whole number.")
 
     try:
         normalized = float(value)
     except (TypeError, ValueError) as exc:
         raise ReagentValidationError(
-            "quantity must be a non-negative number."
+            "quantity must be a non-negative whole number."
         ) from exc
 
+    if not math.isfinite(normalized) or normalized < 0 or not normalized.is_integer():
+        raise ReagentValidationError("quantity must be a non-negative whole number.")
+    return int(normalized)
+
+
+def _volume_ml(value: object) -> float:
+    if value is None or value == "":
+        return 0.0
+    if isinstance(value, bool):
+        raise ReagentValidationError("volume_ml must be a non-negative number.")
+    try:
+        normalized = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ReagentValidationError(
+            "volume_ml must be a non-negative number."
+        ) from exc
     if not math.isfinite(normalized) or normalized < 0:
-        raise ReagentValidationError("quantity must be a non-negative number.")
+        raise ReagentValidationError("volume_ml must be a non-negative number.")
     return normalized
+
+
+def _quantity_and_volume(
+    data: Mapping[str, Any], quantity_unit: str | None
+) -> tuple[int, float]:
+    """Accept the new count/volume fields and safely convert legacy mL/L amounts."""
+
+    raw_volume = _optional_alias(data, "volume_ml", "volume")
+    if raw_volume is not None and raw_volume != "":
+        return _quantity(data.get("quantity")), _volume_ml(raw_volume)
+    if quantity_unit and quantity_unit.casefold() in {"ml", "l"}:
+        legacy_volume = _volume_ml(data.get("quantity"))
+        multiplier = 1000 if quantity_unit.casefold() == "l" else 1
+        return (1 if legacy_volume > 0 else 0), legacy_volume * multiplier
+    return _quantity(data.get("quantity")), 0.0
 
 
 def _confidence(value: object, field_name: str) -> float | None:
@@ -185,6 +217,7 @@ def _normalize_reagent(data: Mapping[str, Any]) -> dict[str, Any]:
         raise ReagentValidationError(message)
 
     quantity_unit = _optional_text(data.get("quantity_unit"), "quantity_unit")
+    quantity, volume_ml = _quantity_and_volume(data, quantity_unit)
     receipt_key = _optional_text(data.get("receipt_key"), "receipt_key")
     intake_id = _optional_text(data.get("intake_id"), "intake_id")
     # An upstream intake identifier is itself a valid idempotency key.  Keep
@@ -210,8 +243,9 @@ def _normalize_reagent(data: Mapping[str, Any]) -> dict[str, Any]:
         "manufacturer": _optional_text(
             data.get("manufacturer"), "manufacturer"
         ),
-        "quantity": _quantity(data.get("quantity")),
-        "quantity_unit": quantity_unit or "unit",
+        "quantity": quantity,
+        "quantity_unit": "unit",
+        "volume_ml": volume_ml,
         "location": _optional_text(data.get("location"), "location"),
         "expiry_date": _expiry_date(data.get("expiry_date")),
         "smiles": _optional_text(data.get("smiles"), "smiles"),

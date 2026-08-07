@@ -65,6 +65,7 @@ class DatabaseInitializationTests(unittest.TestCase):
                 "cas_number",
                 "quantity",
                 "quantity_unit",
+                "volume_ml",
                 "expiry_date",
                 "chemical_tags",
                 "hazard_labels",
@@ -123,7 +124,8 @@ class DatabaseInitializationTests(unittest.TestCase):
                 row[1] for row in connection.execute("PRAGMA table_info(reagents)")
             }
             row = connection.execute(
-                "SELECT name, cas_number, quantity FROM reagents WHERE id = 1"
+                "SELECT name, cas_number, quantity, quantity_unit, volume_ml "
+                "FROM reagents WHERE id = 1"
             ).fetchone()
 
         self.assertTrue(
@@ -133,7 +135,7 @@ class DatabaseInitializationTests(unittest.TestCase):
                 "classification_rationale",
             }.issubset(columns)
         )
-        self.assertEqual(row, ("Water", "7732-18-5", 1.0))
+        self.assertEqual(row, ("Water", "7732-18-5", 1.0, "unit", 1000.0))
         self.assertEqual(get_schema_version(self.database_path), DATABASE_SCHEMA_VERSION)
 
     def test_initialization_is_repeatable_without_duplicate_rules(self) -> None:
@@ -183,6 +185,24 @@ class DatabaseInitializationTests(unittest.TestCase):
                 connection.execute(
                     """
                     INSERT INTO reagents (name, cas_number, quantity)
+                    VALUES (?, ?, ?)
+                    """,
+                    ("Water", "7732-18-5", -1),
+                )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                connection.execute(
+                    """
+                    INSERT INTO reagents (name, cas_number, quantity)
+                    VALUES (?, ?, ?)
+                    """,
+                    ("Water", "7732-18-5", 1.5),
+                )
+
+            with self.assertRaises(sqlite3.IntegrityError):
+                connection.execute(
+                    """
+                    INSERT INTO reagents (name, cas_number, volume_ml)
                     VALUES (?, ?, ?)
                     """,
                     ("Water", "7732-18-5", -1),

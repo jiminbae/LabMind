@@ -46,8 +46,8 @@ reagent label. Return JSON for exactly these fields:
 - confidence: a number from 0 to 1 that reflects the overall clarity of the
   returned fields.
 
-Do not infer chemistry, hazards, storage, a catalog number, quantity, or an
-expiry date. Never derive or normalize a missing name from the CAS number,
+Do not infer chemistry, hazards, storage, a catalog number, quantity, volume,
+or an expiry date. Never derive or normalize a missing name from the CAS number,
 manufacturer, or another field. Do not guess. Preserve printed text where
 possible. A local CAS checksum check will validate the result after extraction.
 """
