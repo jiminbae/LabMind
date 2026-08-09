@@ -3707,24 +3707,6 @@ def render_inventory_results(
         width="stretch",
     )
 
-    chart_choice = st.selectbox(
-        "Visualize",
-        [
-            "Records by storage location",
-            "Records by manufacturer",
-            "Expiry status distribution",
-        ],
-        key="query_chart",
-    )
-    if chart_choice == "Records by storage location":
-        chart_data = frame.groupby("Storage location").size().rename("Records")
-    elif chart_choice == "Records by manufacturer":
-        chart_data = frame.groupby("Manufacturer").size().rename("Records")
-    else:
-        chart_data = frame.groupby("Expiry state").size().rename("Records")
-    st.bar_chart(chart_data, color="#0071e3")
-
-
 def clear_query_state() -> None:
     keys = {
         "query_search",

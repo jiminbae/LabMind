@@ -784,6 +784,12 @@ render_natural_language_query(load_sample_inventory(db_path={self.database_argum
         self.assertNotIn("st.pills(", source)
         self.assertNotIn('class="query-trace"', source)
 
+    def test_inventory_results_omit_visualization_section(self) -> None:
+        source = Path("app_v5.py").read_text(encoding="utf-8")
+        self.assertNotIn('"Visualize"', source)
+        self.assertNotIn('key="query_chart"', source)
+        self.assertNotIn("st.bar_chart(", source)
+
     def test_slow_actions_have_specific_loading_feedback(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")
         self.assertIn("Reading the reagent label with Gemini…", source)
