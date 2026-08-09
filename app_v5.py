@@ -5,7 +5,6 @@ import html
 import json
 import os
 import re
-from io import BytesIO
 from datetime import date, datetime, timedelta
 from typing import Any, MutableMapping
 from uuid import uuid4
@@ -20,11 +19,6 @@ from backend.app_service import (
 from backend.chemistry_catalog import catalog_profile
 from backend.classification_cache import get_cas_classification
 from backend.classification_service import classify_cas_with_gemini
-from backend.order_matching import (
-    import_pending_orders,
-    match_pending_orders,
-    select_unique_order_match,
-)
 from backend.provider_config import PROVIDER_ENV_NAMES
 from backend.query_translation_service import translate_chemical_question
 from backend.safety_rules import determine_storage_location
@@ -46,10 +40,6 @@ ADD_STATE_KEYS = {
     "add_extraction_source",
     "add_extraction_rationale",
     "add_confirmation",
-    "add_order_scenario",
-    "add_selected_order",
-    "add_order_match_score",
-    "add_register_without_order",
     "add_storage_location",
     "add_classification_cas",
     "add_chemical_labels",
@@ -396,7 +386,7 @@ def apply_theme() -> None:
             background: transparent;
             display: grid;
             gap: 0;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             margin: 6px 0 var(--space-2);
         }
 
@@ -1716,7 +1706,7 @@ def apply_theme() -> None:
             .stepper {
                 display: grid;
                 gap: 0;
-                grid-template-columns: repeat(5, minmax(0, 1fr));
+                grid-template-columns: repeat(4, minmax(0, 1fr));
                 margin-top: 8px;
                 overflow: visible;
                 padding-bottom: 4px;
@@ -2874,20 +2864,18 @@ def render_section_header(eyebrow: str, title: str, copy: str) -> None:
 
 def render_stepper() -> None:
     if st.session_state.get("add_confirmation"):
-        active_step = 5
+        active_step = 4
     elif st.session_state.get("add_extraction_complete"):
         active_step = {
             "Details": 2,
-            "Order": 3,
-            "Storage": 4,
-            "Review": 5,
+            "Storage": 3,
+            "Review": 4,
         }.get(st.session_state.get("add_stage"), 2)
     else:
         active_step = 1
     labels = [
         "Label",
         "Details",
-        "Order",
         "Classify",
         "Review",
     ]
@@ -3046,7 +3034,7 @@ def render_upload_step(*, compact: bool = False) -> bytes | None:
             initialize_extraction_state(contents, uploaded_file.name)
         st.rerun()
     st.markdown(
-        '<p class="quiet-note">AI-extracted values are suggestions. Review every field before matching the received order.</p>',
+        '<p class="quiet-note">AI-extracted values are suggestions. Review every field before chemistry classification and storage assignment.</p>',
         unsafe_allow_html=True,
     )
     return contents
@@ -3118,168 +3106,6 @@ def render_extraction_step() -> None:
         '<p class="quiet-note">The check digit confirms format only. The lab reviewer remains responsible for chemical identity.</p>',
         unsafe_allow_html=True,
     )
-
-
-def render_order_card(order: dict[str, Any], selected: bool = False) -> None:
-    """Render a real pending-order candidate returned by the matching service."""
-
-    selected_class = " selected" if selected else ""
-    order_reference = str(order.get("order_reference") or order.get("order_id") or "Order")
-    name = str(order.get("name") or order.get("chemical_name") or "Not recorded")
-    cas_number = str(order.get("cas_number") or "Not recorded")
-    manufacturer = str(order.get("manufacturer") or "Not recorded")
-    quantity = int(order.get("quantity") or 0)
-    volume_ml = float(order.get("volume_ml") or 0)
-    container_label = "container" if quantity == 1 else "containers"
-    amount = f"{quantity} {container_label} · {volume_ml:g} mL each"
-    raw_score = order.get("score")
-    score = f"{float(raw_score):.0%}" if raw_score is not None else "Review"
-    explanation = str(
-        order.get("explanation")
-        or "Match fields are evaluated deterministically against pending orders."
-    )
-    st.markdown(
-        f"""
-        <div class="order-card{selected_class}">
-            <div class="order-id">{escaped(order_reference)} · {escaped(score)} match</div>
-            <div class="order-name">{escaped(name)}</div>
-            <div class="order-detail">
-                CAS {escaped(cas_number)} · {escaped(manufacturer)} ·
-                {escaped(amount)}<br>{escaped(explanation)}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_pending_order_import() -> None:
-    """Offer a deterministic CSV bridge while an ordering API is unavailable."""
-
-    with st.expander("Import orders awaiting receipt"):
-        st.caption(
-            "Bridge LabMind to an order-system export. Required: "
-            "order_reference (or order_id) and chemical_name (or name). "
-            "Optional: quantity (container count) and volume_ml (per container)."
-        )
-        uploaded_orders = st.file_uploader(
-            "Pending-order CSV",
-            type=["csv"],
-            key="pending_order_csv",
-            label_visibility="collapsed",
-        )
-        if uploaded_orders is None:
-            return
-        if st.button(
-            "Import order records",
-            width="stretch",
-            key="import_pending_orders",
-        ):
-            try:
-                with st.spinner("Validating and importing order records…", show_time=True):
-                    frame = pd.read_csv(BytesIO(uploaded_orders.getvalue()))
-                    records = frame.where(pd.notna(frame), None).to_dict(orient="records")
-                    imported = import_pending_orders(
-                        records,
-                        source=f"CSV import: {uploaded_orders.name}",
-                    )
-            except (ValueError, pd.errors.ParserError) as error:
-                st.error(f"Could not import the order file: {error}")
-                return
-            st.success(f"Imported or updated {len(imported)} pending order(s).")
-            clear_order_selection()
-            st.rerun()
-
-
-def _current_order_match_input() -> dict[str, Any]:
-    return {
-        "name": st.session_state.get("add_field_chemical_name", ""),
-        "cas_number": st.session_state.get("add_field_cas_number", ""),
-        "manufacturer": st.session_state.get("add_field_manufacturer", ""),
-        "specification": st.session_state.get("add_field_specification", ""),
-        "quantity": st.session_state.get("add_field_quantity", 0),
-        "quantity_unit": "unit",
-        "volume_ml": st.session_state.get("add_field_volume_ml", 0),
-    }
-
-
-def render_order_match_step() -> None:
-    if not st.session_state.get("add_extraction_complete"):
-        return
-    render_section_header(
-        "Step 3",
-        "Match the received reagent to its order",
-        "LabMind scores real orders awaiting receipt. Ambiguous or low-confidence matches always stay with the reviewer.",
-    )
-    render_pending_order_import()
-
-    match_input = _current_order_match_input()
-    if not match_input["name"] or not validate_cas_number(match_input["cas_number"]):
-        st.warning(
-            "Enter a chemical name and a CAS number with a valid check digit "
-            "before matching an incoming order."
-        )
-        st.checkbox(
-            "Register without a linked order",
-            key="add_register_without_order",
-        )
-        st.session_state.pop("add_selected_order", None)
-        st.session_state.pop("add_order_match_score", None)
-        return
-
-    candidates = match_pending_orders(match_input)
-    unique_match = select_unique_order_match(candidates)
-    if unique_match:
-        reference = str(unique_match["order_reference"])
-        st.session_state["add_selected_order"] = reference
-        st.session_state["add_order_match_score"] = float(unique_match["score"])
-        st.session_state["add_register_without_order"] = False
-        render_order_card(unique_match, selected=True)
-        st.caption("LabMind selected the single high-confidence order match.")
-        return
-
-    if not candidates:
-        st.session_state.pop("add_selected_order", None)
-        st.session_state.pop("add_order_match_score", None)
-        st.info("No order awaiting receipt matches the reviewed reagent identity.")
-        st.checkbox(
-            "Register without a linked order",
-            key="add_register_without_order",
-        )
-        return
-
-    st.session_state["add_register_without_order"] = False
-    options = {
-        str(candidate["order_reference"]): candidate
-        for candidate in candidates
-    }
-    selected_id = st.selectbox(
-        "Select the matching order",
-        list(options),
-        format_func=lambda value: (
-            f'{value} · {options[value].get("manufacturer") or "Not recorded"} '
-            f'· {float(options[value].get("score") or 0):.0%}'
-        ),
-        key="add_selected_order",
-    )
-    selected = options[selected_id]
-    st.session_state["add_order_match_score"] = float(selected["score"])
-    render_order_card(selected, selected=True)
-    with st.expander("Compare pending-order candidates"):
-        comparison = pd.DataFrame(
-            [
-                {
-                    "Order": candidate["order_reference"],
-                    "Chemical": candidate.get("name"),
-                    "Manufacturer": candidate.get("manufacturer"),
-                    "Quantity": int(candidate.get("quantity") or 0),
-                    "Volume (mL)": float(candidate.get("volume_ml") or 0),
-                    "Match": f'{float(candidate.get("score") or 0):.0%}',
-                }
-                for candidate in candidates
-            ]
-        )
-        st.dataframe(comparison, hide_index=True, width="stretch")
 
 
 def synchronize_classification_state(
@@ -3358,7 +3184,7 @@ def render_storage_step() -> None:
             classify_current_chemical()
     classification = synchronize_classification_state()
     render_section_header(
-        "Step 4",
+        "Step 3",
         "Review chemistry and assign storage",
         "Gemini suggests functions and constraints; LabMind's deterministic safety rules assign the location.",
     )
@@ -3462,9 +3288,6 @@ def render_storage_step() -> None:
 
 
 def current_registration_payload() -> dict[str, Any]:
-    selected_order = st.session_state.get("add_selected_order")
-    if st.session_state.get("add_register_without_order"):
-        selected_order = "Not linked"
     expiry = st.session_state.get("add_field_expiry_date")
     expiry_value = expiry.isoformat() if hasattr(expiry, "isoformat") else ""
     return {
@@ -3483,8 +3306,6 @@ def current_registration_payload() -> dict[str, Any]:
         "extraction_rationale": st.session_state.get(
             "add_extraction_rationale", ""
         ),
-        "pending_order": selected_order,
-        "match_score": st.session_state.get("add_order_match_score"),
         "receipt_key": st.session_state.get("add_receipt_key", ""),
         "image_signature": st.session_state.get("add_file_signature", ""),
         "chemical_labels": list(st.session_state.get("add_chemical_labels", [])),
@@ -3506,13 +3327,6 @@ def current_registration_payload() -> dict[str, Any]:
             st.session_state.get("add_manual_storage_reviewed")
         ),
     }
-
-
-def clear_order_selection() -> None:
-    st.session_state.pop("add_selected_order", None)
-    st.session_state.pop("add_order_match_score", None)
-    st.session_state.pop("add_register_without_order", None)
-    st.session_state.pop("add_confirmation", None)
 
 
 def set_add_stage(stage: str) -> None:
@@ -3576,7 +3390,7 @@ def render_confirmation_step() -> None:
     if confirmation and confirmation.get("payload") != payload:
         st.session_state.pop("add_confirmation", None)
     render_section_header(
-        "Step 5",
+        "Step 4",
         "Approve the inventory record",
         "Complete one final human review before LabMind adds this reagent to searchable inventory.",
     )
@@ -3587,7 +3401,6 @@ def render_confirmation_step() -> None:
         ("Manufacturer", payload["manufacturer"]),
         ("Quantity", f'{payload["quantity"]} container(s)'),
         ("Volume", f'{payload["volume_ml"]:g} mL per container'),
-        ("Pending order", payload["pending_order"] or "Selection required"),
     ]
     identity_summary = "".join(
         f"""
@@ -3652,18 +3465,13 @@ def render_confirmation_step() -> None:
         unsafe_allow_html=True,
     )
     reviewed = st.checkbox(
-        "I reviewed the reagent identity, order match, chemistry, and storage decision.",
+        "I reviewed the reagent identity, chemistry, and storage decision.",
         key="add_reviewed",
-    )
-    order_ready = bool(
-        payload["pending_order"]
-        or st.session_state.get("add_register_without_order")
     )
     button_disabled = not (
         can_confirm_registration(
             reviewed, st.session_state.get("add_extraction_complete", False)
         )
-        and order_ready
         and payload["storage_location"]
         and payload["storage_reviewed"]
         and validate_cas_number(payload["cas_number"])
@@ -3690,11 +3498,6 @@ def render_confirmation_step() -> None:
             st.warning(
                 "The reagent was registered, but its reusable CAS classification "
                 f"cache could not be updated: {confirmation['classification_warning']}"
-            )
-        if confirmation.get("order_warning"):
-            st.warning(
-                "The reagent was registered, but its selected order could not be "
-                f"marked received: {confirmation['order_warning']}"
             )
         st.markdown(
             f"""
@@ -3724,25 +3527,15 @@ def render_registration_workspace() -> None:
     stage = st.session_state["add_stage"]
     if stage == "Details":
         render_extraction_step()
-        render_stage_navigation(next_stage="Order", next_label="Continue to order")
-        return
-    if stage == "Order":
-        render_order_match_step()
-        order_ready = bool(
-            st.session_state.get("add_selected_order")
-            or st.session_state.get("add_register_without_order")
-        )
         render_stage_navigation(
-            previous_stage="Details",
             next_stage="Storage",
             next_label="Continue to storage",
-            next_disabled=not order_ready,
         )
         return
     if stage == "Storage":
         render_storage_step()
         render_stage_navigation(
-            previous_stage="Order",
+            previous_stage="Details",
             next_stage="Review",
             next_label="Review registration",
             next_disabled=not bool(
@@ -3764,7 +3557,7 @@ def render_add_tab() -> None:
     render_section_header(
         "Verified reagent intake",
         "Register every reagent with an evidence trail",
-        "Turn a label photo into a reviewed inventory record, linked order, and rule-based storage decision.",
+        "Turn a label photo into a reviewed inventory record with a rule-based storage decision.",
     )
     render_stepper()
 
@@ -3789,7 +3582,7 @@ def render_add_tab() -> None:
                     render_section_header(
                         "Ready to review",
                         "Let Gemini read the reagent identity",
-                        "LabMind keeps every extracted value editable before order matching or storage decisions begin.",
+                        "LabMind keeps every extracted value editable before chemistry classification and storage decisions begin.",
                     )
                     st.markdown(
                         """

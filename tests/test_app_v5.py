@@ -112,8 +112,6 @@ class AppV5HelpersTest(unittest.TestCase):
             "confidence": 0.91,
             "extraction_source": "Manual test entry",
             "extraction_rationale": "Reviewed test receipt.",
-            "pending_order": "Not linked",
-            "match_score": None,
             "receipt_key": receipt_key or f"test:{cas_number}:{batch_number}",
             "image_signature": "test-image-signature",
             "chemical_labels": labels,
@@ -158,7 +156,6 @@ class AppV5HelpersTest(unittest.TestCase):
                 "Storage constraints",
                 "Expiry state",
                 "Status",
-                "Order reference",
                 "Classification source",
             ],
         )
@@ -436,6 +433,8 @@ class AppV5HelpersTest(unittest.TestCase):
         result = self.register(self.reagent_payload())
         self.assertEqual(result["payload"]["chemical_name"], "Ethanol")
         self.assertEqual(result["record_id"], "LAB-0001")
+        self.assertNotIn("pending_order", result["payload"])
+        self.assertNotIn("match_score", result["payload"])
 
     def test_cas_check_digit_validation(self) -> None:
         self.assertTrue(validate_cas_number("64-17-5"))
@@ -505,11 +504,10 @@ for field, value in get_sample_extraction_result().items():
     st.session_state.setdefault(f"add_field_{{field}}", value)
 st.session_state.setdefault("add_extraction_complete", True)
 st.session_state.setdefault("add_receipt_key", "test-render")
-st.session_state.setdefault("add_register_without_order", True)
 st.session_state["add_stage"] = "{stage}"
 render_registration_workspace()
 """
-        for stage in ("Details", "Order", "Storage", "Review"):
+        for stage in ("Details", "Storage", "Review"):
             app = AppTest.from_string(harness_template.format(stage=stage)).run(timeout=20)
             self.assertEqual(len(app.exception), 0, stage)
 
@@ -569,6 +567,20 @@ app_v5.render_storage_step()
             ["Ambient temperature", "Keep away from oxidizers"],
         )
 
+    def test_registration_progress_has_four_steps_and_no_order_stage(self) -> None:
+        app = AppTest.from_string(
+            "from app_v5 import render_stepper\nrender_stepper()"
+        ).run(timeout=20)
+
+        self.assertEqual(len(app.exception), 0)
+        progress = next(
+            element.value
+            for element in app.markdown
+            if 'aria-label="Registration progress"' in element.value
+        )
+        self.assertEqual(progress.count('role="listitem"'), 4)
+        self.assertNotIn(">Order<", progress)
+
     def test_manual_extraction_fields_survive_stage_navigation_without_sample_data(self) -> None:
         app = AppTest.from_file("app.py").run(timeout=20)
         app.file_uploader[0].upload(
@@ -582,12 +594,12 @@ app_v5.render_storage_step()
         ).click()
         app.run(timeout=20)
         next(
-            button for button in app.button if button.label == "Continue to order"
+            button for button in app.button if button.label == "Continue to storage"
         ).click()
         app.run(timeout=20)
 
         state = app.session_state.filtered_state
-        self.assertEqual(state["add_stage"], "Order")
+        self.assertEqual(state["add_stage"], "Storage")
         self.assertEqual(state["add_field_chemical_name"], "")
         self.assertEqual(state["add_field_cas_number"], "")
         self.assertEqual(state["add_field_quantity"], 0)

@@ -11,7 +11,6 @@ from .chemistry_catalog import smiles_for_cas
 from .classification_cache import upsert_cas_classification
 from .db_utils import list_reagents
 from .intake_service import register_intake
-from .order_matching import mark_order_received
 from .safety_rules import determine_storage_location
 
 
@@ -31,7 +30,6 @@ INVENTORY_COLUMNS = (
     "Storage constraints",
     "Expiry state",
     "Status",
-    "Order reference",
     "Classification source",
 )
 
@@ -52,11 +50,6 @@ def _list(value: object) -> list[str]:
 def _optional_text(value: object) -> str | None:
     normalized = _text(value, default="")
     return normalized or None
-
-
-def _order_reference(value: object) -> str | None:
-    reference = _optional_text(value)
-    return None if reference in {None, "Not linked"} else reference
 
 
 def payload_to_reagent_data(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -94,8 +87,6 @@ def payload_to_reagent_data(payload: Mapping[str, Any]) -> dict[str, Any]:
             payload.get("receipt_key") or payload.get("intake_id")
         ),
         "image_signature": _optional_text(payload.get("image_signature")),
-        "order_reference": _order_reference(payload.get("pending_order")),
-        "match_score": payload.get("match_score"),
         "extraction_confidence": payload.get("confidence"),
         "extraction_source": _optional_text(payload.get("extraction_source")),
         "extraction_rationale": _optional_text(
@@ -145,23 +136,12 @@ def register_reagent_payload(
             classification_warning = str(error)
 
     reagent_id = int(outcome["id"])
-    order_reference = reagent_data["order_reference"]
-    order_warning: str | None = None
-    if order_reference:
-        try:
-            mark_order_received(order_reference, reagent_id, db_path)
-        except ValueError as error:
-            # The physical intake is already durable.  Do not misreport it as
-            # failed merely because a stale/external order reference could not
-            # be reconciled after the fact.
-            order_warning = str(error)
     return {
         "record_id": f"LAB-{reagent_id:04d}",
         "database_id": reagent_id,
         "created": bool(outcome.get("created", True)),
         "prepared_at": outcome.get("created_at"),
         "classification_warning": classification_warning,
-        "order_warning": order_warning,
         "payload": dict(payload),
     }
 
@@ -239,7 +219,6 @@ def reagent_rows_to_inventory_frame(
                     expiry_state,
                     bool(row.get("manual_review")),
                 ),
-                "Order reference": _text(row.get("order_reference")),
                 "Classification source": _text(row.get("classification_source")),
             }
         )

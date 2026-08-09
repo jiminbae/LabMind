@@ -17,7 +17,6 @@ streamlit run app.py
 - Label intake with a locally verified CAS check digit
 - Real SQLite reagent-lot registration with a deterministic `LAB-0001` style
   record code and idempotent receipt keys
-- CSV import, deterministic matching, and receipt completion for pending orders
 - CAS-level, multi-label classification cache with an optional Gemini provider
 - Deterministic, fail-closed storage assignment rules; AI never selects a cabinet
 - Inventory search against the stored reagent rows, not a hard-coded snapshot
@@ -25,8 +24,7 @@ streamlit run app.py
   then intersected with available, non-expired inventory
 
 The language layer never determines whether an item is in stock. Availability,
-container quantity, per-container volume, expiry state, record IDs, order
-completion, and storage locations
+container quantity, per-container volume, expiry state, record IDs, and storage locations
 remain deterministic database or rule-engine decisions.
 
 ## AI setup
@@ -51,17 +49,6 @@ outputs remain editable and must be reviewed. RDKit validates and executes the
 SMARTS plan against the real inventory; the model never reports stock
 availability. The safety rule engine—not the model—chooses the recommended
 storage location.
-
-## Order data
-
-Step 3 accepts a CSV export with `order_reference` (or `order_id`) and
-`chemical_name` (or `name`). Optional supported columns are `cas_number`,
-`catalog_number`, `specification`, `manufacturer`, integer `quantity`, and
-`volume_ml`. Here, quantity means the number of containers and volume means the
-millilitres in each container. Legacy CSV rows that used `quantity` with an
-`mL` or `L` unit are converted automatically.
-The importer is idempotent by order reference. Exact CAS conflicts are never
-matched, and ambiguous candidates require a human selection.
 
 ## Storage and deployment
 
