@@ -25,6 +25,7 @@ database writes are handled by application code rather than the language model.
 - **Basic filters** search by chemical name, CAS number, record ID,
   manufacturer, storage location, quantity, volume, and expiry state.
 - **Natural-language query** interprets questions such as “Do we have ethanol?”
+  and “Show all we have”
   as an allowlisted filter object, then verifies it against the actual
   inventory. Gemini never claims that an item is in stock by itself.
 - Natural-language filters can target names, CAS numbers, manufacturers,

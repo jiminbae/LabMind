@@ -459,6 +459,20 @@ class AIServiceTests(unittest.TestCase):
         self.assertEqual(result.status, "manual")
         self.assertIsNone(result.translation)
 
+    def test_query_translation_accepts_an_explicit_show_all_intent(self) -> None:
+        models = FakeModels(InventoryFilterTranslation(show_all=True))
+
+        result = translate_inventory_question(
+            "Show all we have.",
+            environ={"LABMIND_VISION_MODE": "live", "GEMINI_API_KEY": "key"},
+            env_path=None,
+            client=SimpleNamespace(models=models),
+        )
+
+        self.assertEqual(result.status, "success")
+        self.assertTrue(result.translation["show_all"])
+        self.assertIn("show_all", str(models.calls[0]["contents"]))
+
 
 if __name__ == "__main__":
     unittest.main()

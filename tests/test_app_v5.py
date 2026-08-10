@@ -288,6 +288,34 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertNotIn("ethanol", plan["query_code"].lower())
         self.assertNotIn("DROP TABLE", malicious["query_code"])
 
+    def test_show_all_query_returns_the_full_reviewed_inventory(self) -> None:
+        self.register(self.reagent_payload())
+        self.register(
+            self.reagent_payload(
+                chemical_name="Acetonitrile",
+                cas_number="75-05-8",
+                batch_number="LOT-ACN-ALL",
+                quantity=0,
+                receipt_key="test:75-05-8:LOT-ACN-ALL",
+            )
+        )
+        frame = self.load_inventory()
+
+        plan = route_natural_language_query("show all we have", frame)
+
+        self.assertEqual(plan["route"], "inventory_filter")
+        self.assertTrue(plan["filters"]["show_all"])
+        self.assertEqual(len(plan["results"]), len(frame))
+        self.assertEqual(
+            set(plan["results"]["Chemical name"]),
+            {"Ethanol", "Acetonitrile"},
+        )
+        self.assertIn("All reviewed inventory", plan["explanation"])
+
+        alternate = route_natural_language_query("What do we have?", frame)
+        self.assertEqual(len(alternate["results"]), len(frame))
+        self.assertEqual(alternate["filters"]["status"], "any")
+
     def test_named_inventory_item_wins_over_chemical_concept_translation(self) -> None:
         self.register(
             self.reagent_payload(

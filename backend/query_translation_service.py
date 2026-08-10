@@ -23,6 +23,8 @@ inventory-filter object. Return JSON only with these fields:
 - cas_number: a CAS number explicitly requested, otherwise null.
 - manufacturer: a manufacturer explicitly requested, otherwise null.
 - storage_location: a storage location explicitly requested, otherwise null.
+- show_all: true only when the user explicitly asks to see the entire inventory;
+  otherwise false.
 - status: exactly one of any, available, out_of_stock, expired, expiring_soon.
 - expiry_within_days: a non-negative day window, otherwise null.
 - minimum_quantity and maximum_quantity: integer container-count bounds.
@@ -43,6 +45,7 @@ class InventoryFilterTranslation(BaseModel):
     cas_number: str | None = None
     manufacturer: str | None = None
     storage_location: str | None = None
+    show_all: bool = False
     status: Literal[
         "any",
         "available",
@@ -185,6 +188,7 @@ def translate_inventory_question(
         "cas_number": _optional_text(parsed.cas_number),
         "manufacturer": _optional_text(parsed.manufacturer),
         "storage_location": _optional_text(parsed.storage_location),
+        "show_all": parsed.show_all,
         "status": parsed.status,
         "expiry_within_days": parsed.expiry_within_days,
         "minimum_quantity": parsed.minimum_quantity,
@@ -193,8 +197,10 @@ def translate_inventory_question(
         "maximum_volume_ml": parsed.maximum_volume_ml,
         "chemical_labels": _safe_labels(parsed.chemical_labels),
     }
-    has_filter = any(
-        value not in (None, "", [], "any") for value in translation.values()
+    has_filter = translation["show_all"] or any(
+        value not in (None, "", [], "any", False)
+        for key, value in translation.items()
+        if key != "show_all"
     )
     if not has_filter:
         return QueryTranslationResult(

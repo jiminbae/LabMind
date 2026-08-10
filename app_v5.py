@@ -2768,6 +2768,8 @@ def _filter_summary(filters: dict[str, Any]) -> list[str]:
         "maximum_volume_ml": "Maximum volume",
     }
     summary: list[str] = []
+    if filters.get("show_all"):
+        summary.append("All reviewed inventory")
     for key, label in labels.items():
         value = filters.get(key)
         if value is None or value == "":
@@ -2813,6 +2815,7 @@ def _fallback_inventory_filters(query: str, frame: pd.DataFrame) -> dict[str, An
         "cas_number": None,
         "manufacturer": None,
         "storage_location": None,
+        "show_all": False,
         "status": "any",
         "expiry_within_days": None,
         "minimum_quantity": None,
@@ -2821,6 +2824,19 @@ def _fallback_inventory_filters(query: str, frame: pd.DataFrame) -> dict[str, An
         "maximum_volume_ml": None,
         "chemical_labels": [],
     }
+    show_all_phrases = (
+        "show all",
+        "list all",
+        "show everything",
+        "list everything",
+        "entire inventory",
+        "full inventory",
+        "what do we have",
+        "show all we have",
+    )
+    filters["show_all"] = any(
+        phrase in normalized for phrase in show_all_phrases
+    )
     for column, key in (
         ("Manufacturer", "manufacturer"),
         ("Storage location", "storage_location"),
@@ -2849,7 +2865,7 @@ def _fallback_inventory_filters(query: str, frame: pd.DataFrame) -> dict[str, An
         filters["status"] = "expired"
     elif any(term in normalized for term in ("expiring soon", "expire soon")):
         filters["status"] = "expiring_soon"
-    elif any(
+    elif not filters["show_all"] and any(
         term in normalized
         for term in ("available", "in stock", "on hand", "do we have", "have any")
     ):
@@ -2896,6 +2912,7 @@ def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
             "cas_number": None,
             "manufacturer": None,
             "storage_location": None,
+            "show_all": False,
             "status": "any",
             "expiry_within_days": None,
             "minimum_quantity": None,
