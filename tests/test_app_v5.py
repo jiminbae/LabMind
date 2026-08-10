@@ -855,6 +855,16 @@ render_extraction_step()
         self.assertIn("Verified results", source)
         self.assertIn(".st-key-query_results_panel", source)
 
+    def test_promotional_topbar_and_badges_are_removed(self) -> None:
+        source = Path("app_v5.py").read_text(encoding="utf-8")
+        self.assertNotIn("render_topbar", source)
+        self.assertNotIn("brand-mark", source)
+        self.assertNotIn("hero-kicker", source)
+        self.assertNotIn("Verified reagent operations", source)
+        self.assertNotIn("Safety rules active", source)
+        self.assertNotIn("AI-assisted", source)
+        self.assertNotIn("Rule-verified", source)
+
     def test_question_suggestions_use_the_latest_inventory_wording(self) -> None:
         frame = pd.DataFrame(
             {

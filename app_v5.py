@@ -175,69 +175,6 @@ def apply_theme() -> None:
             letter-spacing: -0.015em;
         }
 
-        .topbar {
-            align-items: center;
-            border-bottom: 1px solid var(--line);
-            display: flex;
-            justify-content: space-between;
-            min-height: 60px;
-            padding: 0 2px 14px;
-        }
-
-        .brand {
-            align-items: center;
-            display: flex;
-            gap: 11px;
-        }
-
-        .brand-mark {
-            align-items: center;
-            background: var(--navy);
-            border-radius: 8px;
-            color: #fff;
-            display: inline-flex;
-            font-size: 13px;
-            font-weight: 760;
-            height: 38px;
-            justify-content: center;
-            letter-spacing: -0.02em;
-            width: 38px;
-        }
-
-        .brand-name {
-            color: var(--ink);
-            font-size: 18px;
-            font-weight: 760;
-            line-height: 1.1;
-        }
-
-        .brand-subtitle {
-            color: var(--secondary);
-            font-size: 12px;
-            margin-top: 3px;
-        }
-
-        .topbar-note {
-            align-items: center;
-            background: var(--teal-soft);
-            border: 1px solid rgba(8, 122, 112, 0.18);
-            border-radius: 999px;
-            color: #075f58;
-            display: flex;
-            font-size: 12px;
-            font-weight: 680;
-            gap: 7px;
-            padding: 7px 10px;
-        }
-
-        .topbar-note-dot {
-            background: var(--teal);
-            border-radius: 999px;
-            box-shadow: 0 0 0 4px rgba(8, 122, 112, 0.10);
-            height: 7px;
-            width: 7px;
-        }
-
         .hero {
             align-items: center;
             display: grid;
@@ -245,27 +182,6 @@ def apply_theme() -> None:
             grid-template-columns: minmax(0, 1.1fr) minmax(330px, .9fr);
             padding: 34px 0 26px;
             text-align: left;
-        }
-
-        .hero-kicker {
-            align-items: center;
-            color: var(--teal);
-            display: inline-flex;
-            font-size: 12px;
-            font-weight: 760;
-            gap: 7px;
-            letter-spacing: .08em;
-            margin-bottom: 12px;
-            text-transform: uppercase;
-        }
-
-        .hero-kicker::before {
-            background: var(--teal);
-            border-radius: 50%;
-            box-shadow: 0 0 0 4px rgba(8, 122, 112, .10);
-            content: "";
-            height: 7px;
-            width: 7px;
         }
 
         .hero-title {
@@ -1688,10 +1604,6 @@ def apply_theme() -> None:
             }
         }
 
-        .hero-kicker {
-            animation: heroRise .42s cubic-bezier(.22, 1, .36, 1) both;
-        }
-
         .hero-title {
             animation: heroRise .52s .05s cubic-bezier(.22, 1, .36, 1) both;
         }
@@ -1828,16 +1740,6 @@ def apply_theme() -> None:
                 padding-right: .85rem;
             }
 
-            .brand-subtitle {
-                display: none;
-            }
-
-            .topbar-note {
-                display: flex;
-                font-size: 11px;
-                padding: 6px 8px;
-            }
-
             .capability-rail {
                 display: grid;
                 grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1951,12 +1853,7 @@ def apply_theme() -> None:
         .hero {
             display: block;
             max-width: 760px;
-            padding: 24px 0 18px;
-        }
-
-        .hero-kicker {
-            font-size: 11px;
-            margin-bottom: 9px;
+            padding: 10px 0 18px;
         }
 
         .hero-title {
@@ -2397,24 +2294,9 @@ def apply_theme() -> None:
         }
 
         @media (max-width: 460px) {
-            .topbar {
-                min-height: 54px;
-                padding-bottom: 10px;
-            }
-
-            .brand-mark {
-                height: 34px;
-                width: 34px;
-            }
-
             .hero {
                 gap: 12px;
-                padding: 16px 0 13px;
-            }
-
-            .hero-kicker {
-                font-size: 10px;
-                margin-bottom: 7px;
+                padding: 8px 0 13px;
             }
 
             .hero-title {
@@ -3114,33 +2996,11 @@ def interpret_sample_query(
     return plan["interpretation"], plan["query_code"], plan["results"]
 
 
-def render_topbar() -> None:
-    st.markdown(
-        """
-        <header class="topbar">
-            <div class="brand">
-                <div class="brand-mark">LM</div>
-                <div>
-                    <div class="brand-name">LabMind</div>
-                    <div class="brand-subtitle">Verified reagent operations</div>
-                </div>
-            </div>
-            <div class="topbar-note">
-                <span class="topbar-note-dot"></span>
-                Safety rules active
-            </div>
-        </header>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def render_hero() -> None:
     st.markdown(
         """
         <section class="hero" aria-labelledby="labmind-hero-title">
             <div class="hero-copy-block">
-                <div class="hero-kicker">AI-assisted · Rule-verified</div>
                 <h1 class="hero-title" id="labmind-hero-title">
                     From reagent label<br>
                     <span>to trusted inventory.</span>
@@ -4359,7 +4219,6 @@ def main() -> None:
         initial_sidebar_state="collapsed",
     )
     apply_theme()
-    render_topbar()
     render_hero()
     primary_view = st.segmented_control(
         "Workspace",
