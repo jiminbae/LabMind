@@ -2107,6 +2107,36 @@ def apply_theme() -> None:
             margin: 12px 0 16px;
         }
 
+        .query-instructions {
+            background: linear-gradient(145deg, #f4f8ff, #f7fbfa);
+            border: 1px solid rgba(25, 87, 210, .14);
+            border-radius: 16px;
+            margin: 12px 0 16px;
+            padding: 16px;
+        }
+
+        .query-instructions-title {
+            color: var(--ink);
+            font-size: 14px;
+            font-weight: 760;
+            margin-bottom: 6px;
+        }
+
+        .query-instructions-copy {
+            color: var(--secondary);
+            font-size: 13px;
+            line-height: 1.55;
+        }
+
+        .query-instructions-note {
+            border-top: 1px solid rgba(20, 32, 43, .08);
+            color: var(--tertiary);
+            font-size: 11.5px;
+            line-height: 1.45;
+            margin-top: 10px;
+            padding-top: 9px;
+        }
+
         .query-examples-label {
             color: var(--secondary);
             font-size: 12px;
@@ -4076,6 +4106,93 @@ def render_basic_query(frame: pd.DataFrame) -> pd.DataFrame:
     return st.session_state["query_results"]
 
 
+def inventory_question_suggestions(
+    question: str,
+    frame: pd.DataFrame,
+) -> list[str]:
+    """Create executable examples from the user's latest inventory wording."""
+
+    normalized = _normalize_inventory_phrase(question)
+    chemical = _requested_inventory_chemical(question, frame) if normalized else None
+    if not chemical and "alcohol" in normalized and "Chemical name" in frame.columns:
+        alcohol_names = []
+        for value in frame["Chemical name"].dropna().astype(str).unique():
+            candidate = _normalize_inventory_phrase(value)
+            if any(
+                token in candidate
+                for token in (
+                    "methanol",
+                    "ethanol",
+                    "propanol",
+                    "butanol",
+                    "pentanol",
+                    "hexanol",
+                )
+            ):
+                alcohol_names.append(value)
+        if alcohol_names:
+            chemical = sorted(alcohol_names, key=str.casefold)[0]
+
+    if chemical:
+        return [
+            f"Do we have {chemical} in stock?",
+            f"Show all records for {chemical}.",
+            f"How many containers of {chemical} are available?",
+        ]
+
+    cas_match = re.search(r"\b\d{2,7}-\d{2}-\d\b", question)
+    if cas_match:
+        cas_number = cas_match.group(0)
+        return [
+            f"Do we have CAS {cas_number}?",
+            f"Show all records for CAS {cas_number}.",
+            f"Is CAS {cas_number} currently available?",
+        ]
+
+    for column, noun in (
+        ("Manufacturer", "from"),
+        ("Storage location", "in"),
+    ):
+        if column not in frame.columns:
+            continue
+        for value in frame[column].dropna().astype(str).unique():
+            if _normalize_inventory_phrase(value) in normalized:
+                return [
+                    f"Show available reagents {noun} {value}.",
+                    f"List all reagents {noun} {value}.",
+                    f"Show reagents {noun} {value} that are expiring soon.",
+                ]
+
+    for label in sorted(CHEMICAL_LABEL_OPTIONS):
+        if _normalize_inventory_phrase(label) in normalized:
+            return [
+                f"Find available reagents labeled as {label}.",
+                f"Show all records labeled as {label}.",
+                f"Which {label} reagents are expiring soon?",
+            ]
+
+    if "expir" in normalized:
+        return [
+            "Show reagents expiring soon.",
+            "Show reagents expiring within 30 days.",
+            "Show all expired reagents.",
+        ]
+
+    fallback_chemical = "ethanol"
+    if "Chemical name" in frame.columns and not frame.empty:
+        names = sorted(
+            frame["Chemical name"].dropna().astype(str).unique(),
+            key=str.casefold,
+        )
+        if names:
+            fallback_chemical = names[0]
+    return [
+        f"Do we have {fallback_chemical} in stock?",
+        f"Show all records for {fallback_chemical}.",
+        "Show reagents expiring within 30 days.",
+    ]
+
+
 def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
     query_text = st.text_area(
         "Ask an inventory question",
@@ -4085,14 +4202,30 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
         height=110,
         key="query_natural_text",
     )
+    suggestions = inventory_question_suggestions(query_text, frame)
+    suggestion_label = (
+        "Examples based on your question" if query_text.strip() else "Try a question like"
+    )
+    suggestion_items = "".join(
+        f'<span class="query-example">{escaped(suggestion)}</span>'
+        for suggestion in suggestions
+    )
     st.markdown(
-        """
+        f"""
+        <div class="query-instructions" role="note">
+            <div class="query-instructions-title">How to ask</div>
+            <div class="query-instructions-copy">
+                Use an exact reagent name or CAS number. You can add availability,
+                expiry, manufacturer, storage location, quantity, volume, or a reviewed label.
+            </div>
+            <div class="query-instructions-note">
+                Broad chemical families work only when they are saved as reviewed labels.
+            </div>
+        </div>
         <div class="query-examples" aria-label="Example inventory questions">
-            <div class="query-examples-label">Try a question like</div>
+            <div class="query-examples-label">{escaped(suggestion_label)}</div>
             <div class="query-example-grid">
-                <span class="query-example">Do we have ethanol?</span>
-                <span class="query-example">Show reagents expiring soon.</span>
-                <span class="query-example">Find reagents labeled as chiral ligands.</span>
+                {suggestion_items}
             </div>
         </div>
         """,

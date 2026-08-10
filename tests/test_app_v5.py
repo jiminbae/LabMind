@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
+import pandas as pd
 from streamlit.testing.v1 import AppTest
 
 import app_v5
@@ -21,6 +22,7 @@ from app_v5 import (
     filter_sample_inventory,
     get_chemical_classification,
     get_sample_extraction_result,
+    inventory_question_suggestions,
     load_sample_inventory,
     reset_add_workflow,
     route_natural_language_query,
@@ -835,9 +837,8 @@ render_extraction_step()
         self.assertNotIn("Let Gemini read the reagent identity", source)
         self.assertNotIn("How LabMind verifies an answer", source)
         self.assertIn("Ready when you are.", source)
-        self.assertIn("Do we have ethanol?", source)
         self.assertIn("Show reagents expiring soon.", source)
-        self.assertIn("Find reagents labeled as chiral ligands.", source)
+        self.assertIn("inventory_question_suggestions", source)
         self.assertNotIn("validated SMARTS", source)
 
     def test_inventory_results_omit_visualization_section(self) -> None:
@@ -853,6 +854,31 @@ render_extraction_step()
         self.assertIn('key="query_results_panel"', source)
         self.assertIn("Verified results", source)
         self.assertIn(".st-key-query_results_panel", source)
+
+    def test_question_suggestions_use_the_latest_inventory_wording(self) -> None:
+        frame = pd.DataFrame(
+            {
+                "Chemical name": ["Ethanol", "Acetonitrile"],
+                "CAS number": ["64-17-5", "75-05-8"],
+                "Manufacturer": ["Sigma-Aldrich", "Fisher Scientific"],
+                "Storage location": ["Flammable Cabinet A", "General Shelf A"],
+            }
+        )
+
+        alcohol = inventory_question_suggestions("Do we have alcohol?", frame)
+        supplier = inventory_question_suggestions(
+            "What is available from Sigma-Aldrich?", frame
+        )
+
+        self.assertEqual(len(alcohol), 3)
+        self.assertTrue(all("Ethanol" in suggestion for suggestion in alcohol))
+        self.assertTrue(all("Sigma-Aldrich" in suggestion for suggestion in supplier))
+
+    def test_natural_query_explains_how_to_ask(self) -> None:
+        source = Path("app_v5.py").read_text(encoding="utf-8")
+        self.assertIn("How to ask", source)
+        self.assertIn("Use an exact reagent name or CAS number", source)
+        self.assertIn("Examples based on your question", source)
 
     def test_slow_actions_have_specific_loading_feedback(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")
