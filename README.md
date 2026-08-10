@@ -1,92 +1,163 @@
 # LabMind
 
-LabMind is a focused reagent intake and inventory-discovery workspace.
+LabMind is a Streamlit application for registering laboratory reagents and
+searching a reviewed chemical inventory. It combines optional Gemini assistance
+with deterministic validation, storage rules, and SQLite-backed inventory data.
 
-The stable entrypoint is `app.py`, which loads the current interface from
-`app_v5.py`. A static browser build remains in `site/` for GitHub Pages.
+Live app: [tell-me-more-esea.onrender.com](https://tell-me-more-esea.onrender.com/)
 
-## Run
+## What it does
+
+### Reagent intake
+
+1. Upload a reagent-label image or enter the label fields manually.
+2. Review the extracted chemical name, CAS number, manufacturer, lot number,
+   container quantity, and volume per container.
+3. Generate suggested chemical-function labels and storage constraints.
+4. Review the deterministic storage recommendation and save the record.
+
+Gemini can read label text and suggest allowlisted chemistry metadata, but its
+output is always editable. CAS validation, record IDs, storage assignment, and
+database writes are handled by application code rather than the language model.
+
+### Inventory search
+
+- **Basic filters** search by chemical name, CAS number, record ID,
+  manufacturer, storage location, quantity, volume, and expiry state.
+- **Natural-language query** interprets questions such as “Do we have ethanol?”
+  and verifies the result against the actual inventory.
+- Chemistry-concept questions can be translated into a SMARTS search plan.
+  RDKit validates and executes the plan; Gemini never claims that an item is in
+  stock by itself.
+- Verified results can be exported as CSV.
+
+## Technology
+
+- Python 3.12
+- Streamlit
+- SQLite
+- pandas
+- RDKit
+- Google Gemini through `google-genai`
+- Render for deployment
+
+The application entry point is `app.py`. The current interface is implemented
+in `app_v5.py`, and backend services are organized under `backend/`.
+
+## Run locally
+
+Clone the repository and enter its directory:
+
+```bash
+git clone https://github.com/jiminbae/LabMind.git
+cd LabMind
+```
+
+Create and activate a virtual environment:
+
+```bash
+python -m venv .venv
+```
+
+Windows PowerShell:
 
 ```powershell
+.venv\Scripts\Activate.ps1
+```
+
+macOS or Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+Install the dependencies and start Streamlit:
+
+```bash
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## Implemented workflows
+The app opens at `http://localhost:8501`.
 
-- Label intake with a locally verified CAS check digit
-- Real SQLite reagent-lot registration with a deterministic `LAB-0001` style
-  record code and idempotent receipt keys
-- CAS-level, multi-label classification cache with an optional Gemini provider
-- Deterministic, fail-closed storage assignment rules; AI never selects a cabinet
-- Inventory search against the stored reagent rows, not a hard-coded snapshot
-- Chemistry-meaning questions translated to reviewed SMARTS, matched with RDKit,
-  then intersected with available, non-expired inventory
+## Configure Gemini
 
-The language layer never determines whether an item is in stock. Availability,
-container quantity, per-container volume, expiry state, record IDs, and storage locations
-remain deterministic database or rule-engine decisions.
+Gemini is optional. Without a key, the app remains usable through manual entry.
 
-## AI setup
+For local development, copy `.streamlit/secrets.toml.example` to
+`.streamlit/secrets.toml` and set:
 
-The default is manual entry. The app never fills a label with sample values when
-an API key is unavailable or a request fails.
+```toml
+LABMIND_VISION_MODE = "live"
+LABMIND_PROVIDER = "gemini"
+GEMINI_API_KEY = "your-key"
+```
 
-1. Copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml`.
-2. Set `LABMIND_VISION_MODE = "live"`, `LABMIND_PROVIDER = "gemini"`, and a
-   `GEMINI_API_KEY`.
-3. Restart Streamlit.
+Never commit the API key. On Render, add the same values under the service's
+Environment settings.
 
-Use `GEMINI_API_KEY` as the single key setting. If a legacy `GOOGLE_API_KEY`
-secret is also present with a different value, remove it; the app rejects that
-ambiguous configuration without displaying either secret.
+## Database and deployment
 
-Gemini can extract the printed chemical name, CAS number, specification,
-batch/lot number, and manufacturer from the image. It can also suggest
-allowlisted chemistry labels and storage constraints for a valid CAS, or
-translate an unfamiliar chemistry question into a SMARTS *search plan*. Both
-outputs remain editable and must be reviewed. RDKit validates and executes the
-SMARTS plan against the real inventory; the model never reports stock
-availability. The safety rule engine—not the model—chooses the recommended
-storage location.
+By default, LabMind stores records in the local `inventory.db` SQLite database.
+Set `LABMIND_DB_PATH` to use another path.
 
-## Storage and deployment
+The included `render.yaml` installs the dependencies, starts Streamlit on
+Render's assigned port, and uses `/_stcore/health` as its health check. A free
+Render instance has an ephemeral filesystem, so its local SQLite data can be
+lost after a restart or redeployment. A production version should use a
+persistent disk or an externally managed database.
 
-`inventory.db` is a local SQLite implementation suitable for development and a
-single running process. Streamlit Community Cloud does **not** guarantee local
-file persistence, so do not use this default database as the durable source of
-truth for a real laboratory. Production deployment requires an externally
-managed database and the relevant credentials; those are intentionally not
-committed to this repository.
+## Tests
 
-### Render
+Run the complete test suite with:
 
-The repository includes a root-level `render.yaml` Blueprint for a free Render
-web service. It installs `requirements.txt`, binds Streamlit to Render's `PORT`,
-and exposes Streamlit's health endpoint. The initial service uses manual AI mode
-so it can deploy without committing a provider key.
-
-To enable Gemini after deployment, add `GEMINI_API_KEY` in the Render service's
-Environment page and change `LABMIND_VISION_MODE` to `live`. Never commit the
-key or a local `.streamlit/secrets.toml` file.
-
-Free Render services use an ephemeral filesystem. For persistent SQLite data,
-upgrade to a paid service, attach a disk at `/var/data`, and set
-`LABMIND_DB_PATH=/var/data/inventory.db`. For multi-instance production use,
-replace SQLite with an externally managed database.
-
-Run the verification suite with:
-
-```powershell
+```bash
 python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-## GitHub Pages
+The suite covers database initialization, reagent registration, CAS validation,
+AI-provider boundaries, inventory filtering, natural-language routing, and
+Streamlit regressions.
 
-Pushes that change `site/` on the `frontend` branch deploy through
-`.github/workflows/deploy-pages.yml`. The repository owner must select
-**GitHub Actions** under **Settings → Pages → Build and deployment** once.
+## How we used AI to build LabMind
 
-GitHub Pages hosts only the static browser build in `site/`. The operational
-Python intake and inventory application is the Streamlit deployment from
-`app.py` on the `frontend` branch.
+We used ChatGPT and Codex as development partners, not as the source of product
+truth. They helped us draft Streamlit components, trace data across the UI and
+backend, refactor repeated code, propose tests, and investigate failures. We
+reviewed the generated changes, ran the application, and used automated tests
+before accepting them.
+
+### A specific example
+
+We asked AI to investigate why a natural-language question reported that a
+chemical was missing even though the record existed in SQLite. AI helped trace
+the path from the question parser to the generated filter and final dataframe.
+This revealed that exact-name matching rejected abbreviations and
+stereochemical prefixes such as `(R)-`, and that zero-quantity or expired named
+records were hidden instead of being shown with their real status. We changed
+the routing order, normalized names, returned explicitly requested records, and
+added regression tests using real inventory rows.
+
+### What AI got wrong
+
+AI-generated code was not correct on the first attempt. One classification
+implementation modified `st.session_state` after Streamlit had instantiated
+widgets, causing a `StreamlitAPIException`. Another inventory view tried to
+parse the text `Not recorded` as a date, causing a pandas `DateParseError`.
+AI also suggested interface features that worked technically but did not support
+the product's core task, including an Order stage and inventory charts. We
+reproduced these problems, identified their causes, changed the code, and added
+tests rather than accepting the first generated solution.
+
+### What the team did ourselves
+
+We wrote and reviewed the product requirements, workflow decisions, and safety
+boundaries ourselves because AI cannot know our users or take responsibility
+for laboratory decisions. The team decided that storage locations must come
+from deterministic rules, that AI suggestions must remain editable, and that
+inventory availability must come only from the database. We also decided to
+remove the Order and Visualize sections after judging that they distracted from
+the core intake-and-search workflow.
+
+In short: **we used AI to implement, debug, and test; we did not let it decide
+what the product should be or treat its output as automatically correct.**
