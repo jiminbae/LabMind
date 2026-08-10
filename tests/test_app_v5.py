@@ -367,7 +367,8 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertTrue((plan["results"]["Status"] != "Expired").all())
         self.assertIn("Match evidence", plan["results"].columns)
         self.assertTrue(invalid.empty)
-        self.assertIn("failed validation", warning)
+        self.assertIn("could not verify", warning)
+        self.assertNotIn("SMARTS", warning)
 
     def test_unfamiliar_chemical_query_reaches_live_translator(self) -> None:
         if Chem is None:
@@ -784,6 +785,16 @@ render_natural_language_query(load_sample_inventory(db_path={self.database_argum
         self.assertNotIn("st.pills(", source)
         self.assertNotIn('class="query-trace"', source)
 
+    def test_simplified_intake_and_query_guidance_are_present(self) -> None:
+        source = Path("app_v5.py").read_text(encoding="utf-8")
+        self.assertNotIn("Read the reagent", source)
+        self.assertNotIn("Let Gemini read the reagent identity", source)
+        self.assertNotIn("How LabMind verifies an answer", source)
+        self.assertIn("Ready when you are.", source)
+        self.assertIn("Do we have ethanol?", source)
+        self.assertIn("Show reagents expiring soon.", source)
+        self.assertIn("Find chiral phosphine ligands.", source)
+
     def test_inventory_results_omit_visualization_section(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")
         self.assertNotIn('"Visualize"', source)
@@ -792,6 +803,8 @@ render_natural_language_query(load_sample_inventory(db_path={self.database_argum
 
     def test_slow_actions_have_specific_loading_feedback(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")
+        self.assertIn('position: fixed;', source)
+        self.assertIn('z-index: 999999;', source)
         self.assertIn("Reading the reagent label with Gemini…", source)
         self.assertIn(
             "Generating chemical functions and storage constraints with Gemini…",

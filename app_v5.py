@@ -153,7 +153,7 @@ def apply_theme() -> None:
         }
 
         div.block-container {
-            max-width: 1120px;
+            max-width: 1240px;
             padding: .75rem 2rem 4rem;
         }
 
@@ -665,12 +665,33 @@ def apply_theme() -> None:
 
         div[data-testid="stSpinner"] {
             align-items: center;
-            background: #f3f6f8;
-            border: 1px solid var(--line);
-            border-radius: var(--radius-control);
+            backdrop-filter: blur(10px);
+            background: rgba(20, 32, 43, .28);
+            border: 0;
+            border-radius: 0;
             color: var(--ink) !important;
-            margin: 10px 0;
-            padding: 11px 13px;
+            display: flex;
+            inset: 0;
+            justify-content: center;
+            margin: 0;
+            padding: 24px;
+            position: fixed;
+            z-index: 999999;
+        }
+
+        div[data-testid="stSpinner"] > div {
+            align-items: center;
+            background: rgba(255, 255, 255, .98);
+            border: 1px solid rgba(255, 255, 255, .72);
+            border-radius: 18px;
+            box-shadow: 0 24px 70px rgba(20, 32, 43, .24);
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            max-width: 440px;
+            min-height: 84px;
+            padding: 20px 24px;
+            width: min(440px, calc(100vw - 40px));
         }
 
         div[data-testid="stSpinner"] p,
@@ -955,6 +976,7 @@ def apply_theme() -> None:
         }
 
         .compact-upload-header {
+            margin-bottom: 16px;
             min-width: 0;
         }
 
@@ -965,8 +987,9 @@ def apply_theme() -> None:
 
         .compact-upload-title {
             color: var(--ink);
-            font-size: 22px;
-            font-weight: 680;
+            font-family: inherit !important;
+            font-size: 20px;
+            font-weight: 720;
             letter-spacing: -0.035em;
             line-height: 1.12;
             margin: 0;
@@ -978,8 +1001,7 @@ def apply_theme() -> None:
             line-height: 1.45;
             margin: 5px 0 0;
             overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            overflow-wrap: anywhere;
         }
 
         .st-key-label_preview,
@@ -1367,6 +1389,7 @@ def apply_theme() -> None:
             background: linear-gradient(145deg, rgba(0, 113, 227, 0.075), rgba(8, 127, 117, 0.055));
             border: 1px solid rgba(0, 113, 227, 0.18);
             border-radius: 18px;
+            margin-bottom: 18px;
             padding: 20px;
         }
 
@@ -1502,7 +1525,15 @@ def apply_theme() -> None:
 
         .st-key-intake_start {
             margin: var(--space-1) auto 0;
-            max-width: 680px;
+            max-width: 860px;
+        }
+
+        .st-key-upload_panel .st-key-section_header_upload-a-label-photo {
+            margin-bottom: 22px;
+        }
+
+        .st-key-registration_panel .section-header {
+            margin-bottom: 20px;
         }
 
         .st-key-intake_workspace .st-key-upload_panel {
@@ -1891,9 +1922,9 @@ def apply_theme() -> None:
 
         /* LabMind visual refinement: keep the product task ahead of the pitch. */
         .hero {
-            gap: clamp(28px, 4vw, 48px);
-            grid-template-columns: minmax(0, 1.25fr) minmax(310px, .75fr);
-            padding: 22px 0 18px;
+            display: block;
+            max-width: 760px;
+            padding: 24px 0 18px;
         }
 
         .hero-kicker {
@@ -1946,12 +1977,12 @@ def apply_theme() -> None:
         .st-key-primary_view [role="radiogroup"],
         .st-key-primary_view div[data-testid="stSegmentedControl"] > div,
         .st-key-primary_view div[data-testid="stButtonGroup"] [role="radiogroup"] {
-            background: #e9eef2 !important;
-            border: 1px solid rgba(20, 32, 43, .08) !important;
-            border-radius: 14px !important;
-            box-shadow: inset 0 1px 2px rgba(20, 32, 43, .035) !important;
-            max-width: 520px;
-            padding: 4px !important;
+            background: #e7edf3 !important;
+            border: 1px solid rgba(20, 32, 43, .10) !important;
+            border-radius: 17px !important;
+            box-shadow: inset 0 1px 3px rgba(20, 32, 43, .05) !important;
+            max-width: 680px;
+            padding: 5px !important;
         }
 
         .st-key-primary_view button[data-variant="segmented_control"],
@@ -1959,8 +1990,11 @@ def apply_theme() -> None:
         .st-key-primary_view div[data-testid="stButtonGroup"]
         button[data-variant="segmented_control"] {
             border: 0 !important;
-            border-radius: 10px !important;
-            min-height: 44px !important;
+            border-radius: 12px !important;
+            font-size: 16px !important;
+            font-weight: 720 !important;
+            letter-spacing: -.015em;
+            min-height: 56px !important;
         }
 
         .st-key-primary_view button[data-variant="segmented_control"][data-selected],
@@ -1972,7 +2006,7 @@ def apply_theme() -> None:
         button[data-variant="segmented_control"][aria-checked="true"] {
             background: #fff !important;
             border: 0 !important;
-            box-shadow: 0 1px 5px rgba(20, 32, 43, .13) !important;
+            box-shadow: 0 3px 12px rgba(20, 32, 43, .16) !important;
             color: var(--accent) !important;
         }
 
@@ -1994,12 +2028,79 @@ def apply_theme() -> None:
 
         .st-key-intake_start {
             margin-top: 0;
-            max-width: 760px;
+            max-width: 860px;
         }
 
         .st-key-upload_panel,
         .st-key-query_panel {
-            padding: 24px;
+            padding: 28px;
+        }
+
+        .review-empty {
+            align-items: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 320px;
+            padding: 36px 22px;
+            text-align: center;
+        }
+
+        .review-empty-mark {
+            align-items: center;
+            background: var(--accent-soft);
+            border-radius: 50%;
+            color: var(--accent);
+            display: flex;
+            font-size: 18px;
+            font-weight: 760;
+            height: 48px;
+            justify-content: center;
+            margin-bottom: 20px;
+            width: 48px;
+        }
+
+        .review-empty-title {
+            color: var(--ink);
+            font-size: clamp(24px, 2.5vw, 32px);
+            font-weight: 740;
+            letter-spacing: -.04em;
+            line-height: 1.1;
+        }
+
+        .review-empty-copy {
+            color: var(--secondary);
+            font-size: 14px;
+            line-height: 1.55;
+            margin-top: 10px;
+            max-width: 380px;
+        }
+
+        .query-examples {
+            margin: 12px 0 16px;
+        }
+
+        .query-examples-label {
+            color: var(--secondary);
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .query-example-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .query-example {
+            background: #f6f8fa;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            color: var(--secondary);
+            font-size: 12px;
+            line-height: 1.35;
+            padding: 8px 11px;
         }
 
         div[data-testid="stFileUploader"] section {
@@ -2110,9 +2211,20 @@ def apply_theme() -> None:
                 margin-bottom: 20px;
             }
 
+            .st-key-primary_view button[data-variant="segmented_control"],
+            .st-key-primary_view div[data-testid="stSegmentedControl"] button {
+                font-size: 14px !important;
+                min-height: 52px !important;
+            }
+
             .st-key-upload_panel,
             .st-key-query_panel {
                 padding: 18px;
+            }
+
+            .review-empty {
+                min-height: 220px;
+                padding: 28px 14px;
             }
 
             div[data-testid="stFileUploader"] section {
@@ -2676,10 +2788,16 @@ def execute_smarts_query(
     """Run RDKit substructure matching, then join only to usable inventory rows."""
     empty = empty_inventory_result(frame)
     if Chem is None:
-        return empty, len(frame), "RDKit chemistry runtime is unavailable."
+        return empty, len(frame), (
+            "This chemistry search is unavailable right now. "
+            "Try a chemical name or CAS number instead."
+        )
     query_molecules = [Chem.MolFromSmarts(pattern) for pattern in patterns]
     if not query_molecules or any(query is None for query in query_molecules):
-        return empty, 0, "The translated SMARTS pattern failed validation."
+        return empty, 0, (
+            "I could not verify that chemistry description. "
+            "Try a chemical name, CAS number, or a simpler feature such as 'chiral ligand'."
+        )
 
     matched_indices: list[int] = []
     skipped = 0
@@ -2768,14 +2886,17 @@ def route_natural_language_query(
         }
     return {
         "route": "unsupported",
-        "route_label": "Chemistry translation unavailable",
+        "route_label": "Try a more specific question",
         "interpretation": (
-            "This question needs a reviewed SMARTS translation before search."
+            "I could not connect that question to a safe inventory search."
         ),
         "query_code": "",
         "parameters": [],
         "results": empty_inventory_result(frame),
-        "warning": provider_result.message,
+        "warning": (
+            "Ask about a chemical name, CAS number, manufacturer, expiry, quantity, "
+            "or a chemistry feature such as 'chiral ligand'."
+        ),
     }
 
 
@@ -2822,23 +2943,6 @@ def render_hero() -> None:
                     Capture a label, review its chemistry, apply deterministic storage
                     rules, and search only what the lab actually has.
                 </p>
-            </div>
-            <div class="capability-rail" aria-label="LabMind capabilities">
-                <div class="capability">
-                    <span>01</span>
-                    <strong>Read the reagent</strong>
-                    <small>AI extracts; the lab reviews</small>
-                </div>
-                <div class="capability">
-                    <span>02</span>
-                    <strong>Classify the chemistry</strong>
-                    <small>AI proposes; safety rules decide</small>
-                </div>
-                <div class="capability">
-                    <span>03</span>
-                    <strong>Trust the inventory</strong>
-                    <small>Structure, stock, and expiry are checked</small>
-                </div>
             </div>
         </section>
         """,
@@ -2945,7 +3049,7 @@ def render_upload_step(*, compact: bool = False) -> bytes | None:
             f"""
             <div class="compact-upload-header">
                 <div class="section-eyebrow">Step 1 · Complete</div>
-                <h2 class="compact-upload-title">Label captured</h2>
+                <div class="compact-upload-title" role="heading" aria-level="2">Label captured</div>
                 <p class="compact-upload-file" title="{escaped(uploaded_file.name)}">
                     {escaped(uploaded_file.name)} · {format_file_size(len(contents))} · {uploaded_at}
                 </p>
@@ -2977,8 +3081,8 @@ def render_upload_step(*, compact: bool = False) -> bytes | None:
 
     render_section_header(
         "Step 1",
-        "Upload the reagent label",
-        "Start with a clear bottle or package photo. LabMind extracts the identity; you approve the record.",
+        "Upload a label photo",
+        "Use a clear bottle or package photo, then review every extracted value.",
     )
     uploaded_file = st.file_uploader(
         "Reagent label",
@@ -3568,7 +3672,7 @@ def render_add_tab() -> None:
         return
 
     with st.container(key="intake_workspace"):
-        left, right = st.columns([0.72, 1.28], gap="medium")
+        left, right = st.columns([0.9, 1.1], gap="large")
         with left:
             with st.container(border=True, key="upload_panel"):
                 uploaded_contents = render_upload_step(
@@ -3579,19 +3683,14 @@ def render_add_tab() -> None:
                 return
             if not st.session_state.get("add_extraction_complete"):
                 with st.container(border=True, key="review_placeholder"):
-                    render_section_header(
-                        "Ready to review",
-                        "Let Gemini read the reagent identity",
-                        "LabMind keeps every extracted value editable before chemistry classification and storage decisions begin.",
-                    )
                     st.markdown(
                         """
-                        <div class="preview-list">
-                            <div><span>01</span><strong>Chemical name</strong></div>
-                            <div><span>02</span><strong>CAS number</strong></div>
-                            <div><span>03</span><strong>Specification</strong></div>
-                            <div><span>04</span><strong>Batch or lot</strong></div>
-                            <div><span>05</span><strong>Manufacturer</strong></div>
+                        <div class="review-empty">
+                            <div class="review-empty-mark">LM</div>
+                            <div class="review-empty-title">Ready when you are.</div>
+                            <div class="review-empty-copy">
+                                Read the uploaded label with Gemini, then review every field.
+                            </div>
                         </div>
                         """,
                         unsafe_allow_html=True,
@@ -3804,10 +3903,23 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
     query_text = st.text_area(
         "Ask a chemistry or inventory question",
         placeholder=(
-            "Try “Do we have a chiral phosphine ligand for asymmetric reduction?”"
+            "Try “Do we have ethanol?”"
         ),
         height=110,
         key="query_natural_text",
+    )
+    st.markdown(
+        """
+        <div class="query-examples" aria-label="Example inventory questions">
+            <div class="query-examples-label">Try a question like</div>
+            <div class="query-example-grid">
+                <span class="query-example">Do we have ethanol?</span>
+                <span class="query-example">Show reagents expiring soon.</span>
+                <span class="query-example">Find chiral phosphine ligands.</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
     if st.button(
         "Verify question against inventory",
@@ -3828,27 +3940,13 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
             )
         st.session_state["query_natural_plan_question"] = submitted_question
 
-    with st.expander("How LabMind verifies an answer"):
-        st.markdown(
-            """
-            <div class="verification-boundary">
-                <strong>AI interprets intent. Lab inventory determines availability.</strong>
-                <span>
-                    Structured questions become bound filters. Chemistry questions become
-                    validated SMARTS, run through RDKit, then join back to on-hand records.
-                </span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
     plan = st.session_state.get("query_natural_plan")
     plan_matches_question = (
         st.session_state.get("query_natural_plan_question") == query_text.strip()
     )
     if not plan or not plan_matches_question:
         st.markdown(
-            '<div class="query-ready">Ask LabMind a question to see the verified execution path and matching on-hand records.</div>',
+            '<div class="query-ready">Ask about a chemical, CAS number, manufacturer, expiry, quantity, or chemistry feature.</div>',
             unsafe_allow_html=True,
         )
         return empty_inventory_result(frame)
