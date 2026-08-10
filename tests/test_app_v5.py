@@ -846,6 +846,14 @@ render_extraction_step()
         self.assertNotIn('key="query_chart"', source)
         self.assertNotIn("st.bar_chart(", source)
 
+    def test_inventory_search_uses_side_by_side_controls_and_results(self) -> None:
+        source = Path("app_v5.py").read_text(encoding="utf-8")
+        self.assertIn("st.columns([0.38, 0.62]", source)
+        self.assertIn('key="query_controls_panel"', source)
+        self.assertIn('key="query_results_panel"', source)
+        self.assertIn("Verified results", source)
+        self.assertIn(".st-key-query_results_panel", source)
+
     def test_slow_actions_have_specific_loading_feedback(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")
         self.assertIn('position: fixed;', source)

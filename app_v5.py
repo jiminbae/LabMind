@@ -2188,12 +2188,88 @@ def apply_theme() -> None:
             box-shadow: 0 1px 4px rgba(20, 32, 43, .12) !important;
         }
 
-        .st-key-query_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
+        .st-key-query_workspace > div[data-testid="stVerticalBlock"] >
+        div[data-testid="stHorizontalBlock"] {
+            align-items: flex-start;
+        }
+
+        .st-key-query_controls_panel,
+        .st-key-query_results_panel {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            box-shadow: 0 14px 38px rgba(20, 32, 43, .07);
+            overflow: hidden;
+            padding: 26px;
+        }
+
+        .st-key-query_controls_panel {
+            position: sticky;
+            top: 16px;
+        }
+
+        .st-key-query_results_panel {
+            background: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+            min-width: 0;
+            padding: 28px;
+        }
+
+        .st-key-query_controls_panel > div,
+        .st-key-query_results_panel > div {
+            padding: 0;
+        }
+
+        .query-panel-heading {
+            border-bottom: 1px solid rgba(20, 32, 43, .08);
+            margin-bottom: 20px;
+            padding-bottom: 18px;
+        }
+
+        .query-panel-eyebrow {
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 780;
+            letter-spacing: .105em;
+            margin-bottom: 7px;
+            text-transform: uppercase;
+        }
+
+        .query-panel-title {
+            color: var(--ink);
+            font-size: clamp(22px, 2vw, 28px);
+            font-weight: 760;
+            letter-spacing: -.035em;
+            line-height: 1.12;
+        }
+
+        .query-panel-copy {
+            color: var(--secondary);
+            font-size: 13.5px;
+            line-height: 1.55;
+            margin-top: 7px;
+            max-width: 620px;
+        }
+
+        .st-key-query_results_panel .metric-row {
+            margin-top: 0;
+        }
+
+        .st-key-query_results_panel div[data-testid="stDataFrame"] {
+            border: 1px solid rgba(20, 32, 43, .08);
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        .st-key-query_results_panel .query-answer-card {
+            margin: 0 0 18px;
+        }
+
+        .st-key-query_controls_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
         > div[data-testid="stColumn"]:first-child {
             flex: 3 1 0 !important;
         }
 
-        .st-key-query_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
+        .st-key-query_controls_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
         > div[data-testid="stColumn"]:last-child {
             flex: 1 1 0 !important;
         }
@@ -2258,6 +2334,26 @@ def apply_theme() -> None:
             .st-key-upload_panel,
             .st-key-query_panel {
                 padding: 18px;
+            }
+
+            .st-key-query_workspace > div[data-testid="stVerticalBlock"] >
+            div[data-testid="stHorizontalBlock"] {
+                flex-direction: column;
+            }
+
+            .st-key-query_workspace > div[data-testid="stVerticalBlock"] >
+            div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+                flex: 1 1 auto !important;
+                width: 100% !important;
+            }
+
+            .st-key-query_controls_panel {
+                position: static;
+            }
+
+            .st-key-query_controls_panel,
+            .st-key-query_results_panel {
+                padding: 20px;
             }
 
             .review-empty {
@@ -2361,7 +2457,7 @@ def apply_theme() -> None:
                 font-size: 11px;
             }
 
-            .st-key-query_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
+            .st-key-query_controls_panel div[data-testid="stHorizontalBlock"]:has(.st-key-clear_basic_query)
             > div[data-testid="stColumn"] {
                 flex: 1 1 100% !important;
             }
@@ -3869,6 +3965,7 @@ def render_inventory_results(
     st.dataframe(
         display_frame[display_columns],
         width="stretch",
+        height=min(520, max(210, 36 * (len(display_frame) + 1))),
         hide_index=True,
         column_config={
             "Expiry date": st.column_config.DateColumn("Expiry date", format="YYYY-MM-DD"),
@@ -4025,12 +4122,21 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
         st.session_state.get("query_natural_plan_question") == query_text.strip()
     )
     if not plan or not plan_matches_question:
-        st.markdown(
-            '<div class="query-ready">Ask about a chemical, CAS number, manufacturer, expiry, quantity, storage location, or chemical label.</div>',
-            unsafe_allow_html=True,
-        )
         return frame
+    return plan["results"]
 
+
+def current_natural_query_plan() -> dict[str, Any] | None:
+    """Return only the plan that belongs to the question currently on screen."""
+
+    plan = st.session_state.get("query_natural_plan")
+    question = st.session_state.get("query_natural_text", "").strip()
+    if not plan or st.session_state.get("query_natural_plan_question") != question:
+        return None
+    return plan
+
+
+def render_natural_query_answer(plan: dict[str, Any]) -> None:
     st.markdown(
         f"""
         <div class="query-answer-card">
@@ -4045,7 +4151,19 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
     )
     if plan.get("warning"):
         st.warning(plan["warning"])
-    return plan["results"]
+
+
+def render_query_panel_heading(title: str, copy: str, *, eyebrow: str) -> None:
+    st.markdown(
+        f"""
+        <div class="query-panel-heading">
+            <div class="query-panel-eyebrow">{escaped(eyebrow)}</div>
+            <div class="query-panel-title">{escaped(title)}</div>
+            <div class="query-panel-copy">{escaped(copy)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_query_tab() -> None:
@@ -4064,16 +4182,40 @@ def render_query_tab() -> None:
         width="stretch",
         label_visibility="collapsed",
     )
-    with st.container(border=True, key="query_panel"):
-        if mode == "Basic filters":
-            results = render_basic_query(frame)
-        else:
-            results = render_natural_language_query(frame)
-    render_inventory_results(results, inventory_is_empty=frame.empty)
-    st.markdown(
-        '<p class="quiet-note">AI may translate your words into filters, but container quantity, volume, status, and expiry always come from reviewed inventory records.</p>',
-        unsafe_allow_html=True,
-    )
+    with st.container(key="query_workspace"):
+        controls, outcome = st.columns([0.38, 0.62], gap="large")
+        with controls:
+            with st.container(border=True, key="query_controls_panel"):
+                if mode == "Basic filters":
+                    render_query_panel_heading(
+                        "Filter inventory",
+                        "Narrow reviewed records by identity, location, amount, or expiry.",
+                        eyebrow="Search controls",
+                    )
+                    results = render_basic_query(frame)
+                else:
+                    render_query_panel_heading(
+                        "Ask LabMind",
+                        "Describe the inventory records you want to find in plain language.",
+                        eyebrow="AI inventory filter",
+                    )
+                    results = render_natural_language_query(frame)
+        with outcome:
+            with st.container(border=True, key="query_results_panel"):
+                render_query_panel_heading(
+                    "Verified results",
+                    "Every value below comes from a reviewed inventory record.",
+                    eyebrow="Inventory output",
+                )
+                if mode == "Natural-language query":
+                    plan = current_natural_query_plan()
+                    if plan:
+                        render_natural_query_answer(plan)
+                render_inventory_results(results, inventory_is_empty=frame.empty)
+                st.markdown(
+                    '<p class="quiet-note">AI may translate your words into filters, but container quantity, volume, status, and expiry always come from reviewed inventory records.</p>',
+                    unsafe_allow_html=True,
+                )
 
 
 def main() -> None:
