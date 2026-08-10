@@ -1,45 +1,61 @@
-"""Optional Gemini-to-SMARTS query translation with no inventory authority."""
+"""Optional Gemini translation from natural language to safe inventory filters."""
 
 from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
 from pydantic import BaseModel, Field
 
 from .classification_service import CHEMICAL_LABEL_OPTIONS
 from .provider_config import DEFAULT_ENV_PATH, resolve_gemini_config
 from .provider_errors import provider_failure_message
-from .safety_rules import STORAGE_CONSTRAINT_OPTIONS
 
 
 MAX_QUESTION_LENGTH = 600
-MAX_SMARTS_PATTERNS = 3
+MAX_FILTER_LABELS = 6
 
-QUERY_PROMPT = """Translate one laboratory chemistry question into a constrained
-structure-search plan. Return JSON only with:
+QUERY_PROMPT = """Translate one laboratory inventory question into a constrained
+inventory-filter object. Return JSON only with these fields:
 
-- concept: a short chemistry concept name.
-- patterns: one to three RDKit SMARTS strings.
-- required_labels: zero or more values only from the supplied chemical label
-  list. Use labels only when they are required to avoid an overly broad match.
-- explanation: short explanation of the intended structural criterion.
+- chemical_name: a name or abbreviation explicitly requested, otherwise null.
+- cas_number: a CAS number explicitly requested, otherwise null.
+- manufacturer: a manufacturer explicitly requested, otherwise null.
+- storage_location: a storage location explicitly requested, otherwise null.
+- status: exactly one of any, available, out_of_stock, expired, expiring_soon.
+- expiry_within_days: a non-negative day window, otherwise null.
+- minimum_quantity and maximum_quantity: integer container-count bounds.
+- minimum_volume_ml and maximum_volume_ml: per-container volume bounds in mL.
+- chemical_labels: zero or more values only from the supplied allowlist.
 
-Do not answer whether a reagent is in stock. Do not create SQL. Do not choose a
-storage location. Do not give a synthesis recommendation. If a safe structure
-criterion cannot be expressed, return an empty patterns list.
+Do not answer whether anything is in stock. Do not create SQL, SMARTS, code, or
+chemical structures. Do not invent a filter that the question did not request.
+Use status=any unless the question explicitly asks about availability, expiry,
+or out-of-stock records.
 
 Allowed chemical labels: {chemical_labels}
-Allowed storage constraints (not valid required_labels): {storage_constraints}
 """
 
 
-class ChemicalQueryTranslation(BaseModel):
-    concept: str = "Chemical structure query"
-    patterns: list[str] = Field(default_factory=list, max_length=MAX_SMARTS_PATTERNS)
-    required_labels: list[str] = Field(default_factory=list)
-    explanation: str = ""
+class InventoryFilterTranslation(BaseModel):
+    chemical_name: str | None = None
+    cas_number: str | None = None
+    manufacturer: str | None = None
+    storage_location: str | None = None
+    status: Literal[
+        "any",
+        "available",
+        "out_of_stock",
+        "expired",
+        "expiring_soon",
+    ] = "any"
+    expiry_within_days: int | None = Field(default=None, ge=0, le=3650)
+    minimum_quantity: int | None = Field(default=None, ge=0)
+    maximum_quantity: int | None = Field(default=None, ge=0)
+    minimum_volume_ml: float | None = Field(default=None, ge=0)
+    maximum_volume_ml: float | None = Field(default=None, ge=0)
+    chemical_labels: list[str] = Field(default_factory=list, max_length=MAX_FILTER_LABELS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,44 +78,51 @@ def _create_client(api_key: str) -> Any:
     return genai.Client(api_key=api_key)
 
 
-def _response_to_model(response: Any) -> ChemicalQueryTranslation:
+def _response_to_model(response: Any) -> InventoryFilterTranslation:
     parsed = getattr(response, "parsed", None)
-    if isinstance(parsed, ChemicalQueryTranslation):
+    if isinstance(parsed, InventoryFilterTranslation):
         return parsed
     if isinstance(parsed, dict):
-        return ChemicalQueryTranslation.model_validate(parsed)
+        return InventoryFilterTranslation.model_validate(parsed)
     text = getattr(response, "text", None)
     if not text:
         raise ValueError("The query provider returned no structured result.")
-    return ChemicalQueryTranslation.model_validate(json.loads(text))
+    return InventoryFilterTranslation.model_validate(json.loads(text))
 
 
-def _safe_strings(values: list[str], allowed: frozenset[str]) -> list[str]:
+def _optional_text(value: str | None) -> str | None:
+    normalized = value.strip() if isinstance(value, str) else ""
+    return normalized or None
+
+
+def _safe_labels(values: list[str]) -> list[str]:
+    canonical = {label.casefold(): label for label in CHEMICAL_LABEL_OPTIONS}
     accepted: list[str] = []
     for value in values:
-        normalized = value.strip() if isinstance(value, str) else ""
-        if normalized in allowed and normalized not in accepted:
-            accepted.append(normalized)
-    return accepted
+        normalized = value.strip().casefold() if isinstance(value, str) else ""
+        label = canonical.get(normalized)
+        if label and label not in accepted:
+            accepted.append(label)
+    return accepted[:MAX_FILTER_LABELS]
 
 
-def translate_chemical_question(
+def translate_inventory_question(
     question: str,
     *,
     environ: Mapping[str, str] | None = None,
     env_path=DEFAULT_ENV_PATH,
     client: Any | None = None,
 ) -> QueryTranslationResult:
-    """Return a model-generated query *plan*, never an availability answer."""
+    """Return model-generated filter values, never an inventory answer."""
 
     normalized_question = question.strip()
     if not normalized_question:
-        return QueryTranslationResult("failed", None, "Enter a chemistry question.")
+        return QueryTranslationResult("failed", None, "Enter an inventory question.")
     if len(normalized_question) > MAX_QUESTION_LENGTH:
         return QueryTranslationResult(
             "failed",
             None,
-            f"Keep chemistry questions under {MAX_QUESTION_LENGTH} characters.",
+            f"Keep inventory questions under {MAX_QUESTION_LENGTH} characters.",
         )
 
     try:
@@ -110,13 +133,12 @@ def translate_chemical_question(
         return QueryTranslationResult(
             "manual",
             None,
-            "No live chemistry translator is configured for this question.",
+            "AI inventory filtering is not configured for this question.",
         )
 
     prompt = (
         QUERY_PROMPT.format(
             chemical_labels=", ".join(sorted(CHEMICAL_LABEL_OPTIONS)),
-            storage_constraints=", ".join(STORAGE_CONSTRAINT_OPTIONS),
         )
         + f"\nQuestion: {normalized_question}"
     )
@@ -134,7 +156,7 @@ def translate_chemical_question(
                 contents=prompt,
                 config={
                     "response_mime_type": "application/json",
-                    "response_schema": ChemicalQueryTranslation,
+                    "response_schema": InventoryFilterTranslation,
                 },
             )
         else:
@@ -143,7 +165,7 @@ def translate_chemical_question(
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    response_schema=ChemicalQueryTranslation,
+                    response_schema=InventoryFilterTranslation,
                 ),
             )
         parsed = _response_to_model(response)
@@ -153,33 +175,36 @@ def translate_chemical_question(
             None,
             provider_failure_message(
                 error,
-                operation="Chemistry translation",
-                fallback="No inventory answer was generated.",
+                operation="Inventory question translation",
+                fallback="Try a chemical name, CAS number, or a simpler filter.",
             ),
         )
 
-    patterns = [
-        pattern.strip()
-        for pattern in parsed.patterns
-        if isinstance(pattern, str) and pattern.strip()
-    ][:MAX_SMARTS_PATTERNS]
-    labels = _safe_strings(parsed.required_labels, CHEMICAL_LABEL_OPTIONS)
-    if not patterns:
+    translation = {
+        "chemical_name": _optional_text(parsed.chemical_name),
+        "cas_number": _optional_text(parsed.cas_number),
+        "manufacturer": _optional_text(parsed.manufacturer),
+        "storage_location": _optional_text(parsed.storage_location),
+        "status": parsed.status,
+        "expiry_within_days": parsed.expiry_within_days,
+        "minimum_quantity": parsed.minimum_quantity,
+        "maximum_quantity": parsed.maximum_quantity,
+        "minimum_volume_ml": parsed.minimum_volume_ml,
+        "maximum_volume_ml": parsed.maximum_volume_ml,
+        "chemical_labels": _safe_labels(parsed.chemical_labels),
+    }
+    has_filter = any(
+        value not in (None, "", [], "any") for value in translation.values()
+    )
+    if not has_filter:
         return QueryTranslationResult(
             "manual",
             None,
-            "The translator did not return a safe SMARTS plan; no inventory answer was generated.",
+            "I could not identify an inventory filter. Include a chemical name, "
+            "CAS number, manufacturer, quantity, expiry, location, or chemical label.",
         )
     return QueryTranslationResult(
         "success",
-        {
-            "concept": parsed.concept.strip() or "Chemical structure query",
-            "patterns": patterns,
-            "required_labels": labels,
-            "explanation": (
-                parsed.explanation.strip()
-                or "Model-proposed SMARTS will be validated before inventory matching."
-            ),
-        },
-        "A chemistry search plan was proposed. RDKit validation still decides whether it runs.",
+        translation,
+        "The question was translated into inventory filters for local verification.",
     )

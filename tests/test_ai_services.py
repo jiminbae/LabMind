@@ -17,8 +17,8 @@ from backend.classification_service import (
 from backend.provider_config import resolve_gemini_config
 from backend.provider_errors import provider_failure_message
 from backend.query_translation_service import (
-    ChemicalQueryTranslation,
-    translate_chemical_question,
+    InventoryFilterTranslation,
+    translate_inventory_question,
 )
 from backend.vision_service import LabelExtraction, extract_label_fields
 
@@ -423,29 +423,35 @@ class AIServiceTests(unittest.TestCase):
 
     def test_query_translation_returns_only_a_search_plan(self) -> None:
         models = FakeModels(
-            ChemicalQueryTranslation(
-                concept="Aldehyde-containing reagent",
-                patterns=["[CH]=O"],
-                required_labels=["Organic compound", "not allowed"],
-                explanation="A carbonyl carbon bearing hydrogen.",
+            InventoryFilterTranslation(
+                chemical_name="Ethanol",
+                status="available",
+                maximum_quantity=5,
+                chemical_labels=["Organic compound", "not allowed"],
             )
         )
 
-        result = translate_chemical_question(
-            "Do we have an aldehyde reagent?",
+        result = translate_inventory_question(
+            "Do we have fewer than five containers of ethanol?",
             environ={"LABMIND_VISION_MODE": "live", "GEMINI_API_KEY": "key"},
             env_path=None,
             client=SimpleNamespace(models=models),
         )
 
         self.assertEqual(result.status, "success")
-        self.assertEqual(result.translation["patterns"], ["[CH]=O"])
-        self.assertEqual(result.translation["required_labels"], ["Organic compound"])
+        self.assertEqual(result.translation["chemical_name"], "Ethanol")
+        self.assertEqual(result.translation["status"], "available")
+        self.assertEqual(result.translation["maximum_quantity"], 5)
+        self.assertEqual(result.translation["chemical_labels"], ["Organic compound"])
+        self.assertNotIn("patterns", result.translation)
         self.assertNotIn("availability", result.translation)
+        prompt = str(models.calls[0]["contents"])
+        self.assertIn("inventory-filter object", prompt)
+        self.assertIn("Do not create SQL, SMARTS", prompt)
 
     def test_query_translation_fails_closed_without_a_live_provider(self) -> None:
-        result = translate_chemical_question(
-            "Find a nonstandard ligand family.",
+        result = translate_inventory_question(
+            "Find a nonstandard inventory segment.",
             environ={"LABMIND_VISION_MODE": "manual"},
             env_path=None,
         )

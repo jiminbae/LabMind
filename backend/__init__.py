@@ -37,14 +37,14 @@ from .order_matching import (
     select_unique_order_match,
 )
 from .query_translation_service import (
-    ChemicalQueryTranslation,
+    InventoryFilterTranslation,
     QueryTranslationResult,
-    translate_chemical_question,
+    translate_inventory_question,
 )
 
 __all__ = [
     "CASValidationResult",
-    "ChemicalQueryTranslation",
+    "InventoryFilterTranslation",
     "ClassificationCacheValidationError",
     "DATABASE_SCHEMA_VERSION",
     "DatabaseMigrationError",
@@ -70,7 +70,7 @@ __all__ = [
     "register_intake",
     "resolve_db_path",
     "select_unique_order_match",
-    "translate_chemical_question",
+    "translate_inventory_question",
     "upsert_cas_classification",
     "validate_cas",
     "validate_cas_details",

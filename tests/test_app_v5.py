@@ -12,13 +12,12 @@ from streamlit.testing.v1 import AppTest
 import app_v5
 from app_v5 import (
     ADD_STATE_KEYS,
-    Chem,
+    apply_inventory_filters,
     can_confirm_registration,
     clear_state_keys,
     compile_structured_query,
     confirm_sample_registration,
     determine_storage_location,
-    execute_smarts_query,
     filter_sample_inventory,
     get_chemical_classification,
     get_sample_extraction_result,
@@ -239,6 +238,14 @@ class AppV5HelpersTest(unittest.TestCase):
         ).run(timeout=20)
         app.segmented_control[0].set_value("Natural-language query")
         app.run(timeout=20)
+        self.assertEqual(len(app.dataframe), 1)
+        self.assertEqual(
+            app.dataframe[0].value["Chemical name"].tolist(),
+            ["Ethanol"],
+        )
+        self.assertTrue(
+            any("Matched records" in element.value for element in app.markdown)
+        )
         app.text_area[0].set_value("How much ethanol is left?")
         next(
             button
@@ -275,9 +282,9 @@ class AppV5HelpersTest(unittest.TestCase):
             frame,
         )
 
-        self.assertEqual(plan["route"], "structured")
+        self.assertEqual(plan["route"], "inventory_filter")
         self.assertEqual(plan["results"]["Chemical name"].tolist(), ["Ethanol"])
-        self.assertIn("?", plan["query_code"])
+        self.assertEqual(plan["query_code"], "Verified inventory filter")
         self.assertNotIn("ethanol", plan["query_code"].lower())
         self.assertNotIn("DROP TABLE", malicious["query_code"])
 
@@ -304,8 +311,8 @@ class AppV5HelpersTest(unittest.TestCase):
             frame,
         )
 
-        self.assertEqual(by_short_name["route"], "structured")
-        self.assertEqual(by_cas["route"], "structured")
+        self.assertEqual(by_short_name["route"], "inventory_filter")
+        self.assertEqual(by_cas["route"], "inventory_filter")
         self.assertEqual(
             by_short_name["results"]["Chemical name"].tolist(),
             ["(R)-BINAP"],
@@ -317,9 +324,7 @@ class AppV5HelpersTest(unittest.TestCase):
         self.assertEqual(by_short_name["results"]["Quantity"].tolist(), [0])
         self.assertEqual(by_short_name["results"]["Status"].tolist(), ["Expired"])
 
-    def test_smarts_query_joins_only_to_available_nonexpired_records(self) -> None:
-        if Chem is None:
-            self.skipTest("RDKit is not installed in this runtime.")
+    def test_inventory_filter_combines_labels_status_and_quantity(self) -> None:
         self.register(
             self.reagent_payload(
                 chemical_name="(R)-BINAP",
@@ -359,36 +364,44 @@ class AppV5HelpersTest(unittest.TestCase):
             "Do we have a chiral phosphine ligand for asymmetric reduction?",
             frame,
         )
-        invalid, _, warning = execute_smarts_query(frame, ["[invalid"], [])
+        filtered = apply_inventory_filters(
+            frame,
+            {
+                "status": "available",
+                "minimum_quantity": 2,
+                "chemical_labels": ["Chiral ligand", "Phosphine ligand"],
+            },
+        )
 
-        self.assertEqual(plan["route"], "chemical")
+        self.assertEqual(plan["route"], "inventory_filter")
         self.assertEqual(plan["results"]["Chemical name"].tolist(), ["(R)-BINAP"])
-        self.assertTrue((plan["results"]["Quantity"] > 0).all())
-        self.assertTrue((plan["results"]["Status"] != "Expired").all())
-        self.assertIn("Match evidence", plan["results"].columns)
-        self.assertTrue(invalid.empty)
-        self.assertIn("could not verify", warning)
-        self.assertNotIn("SMARTS", warning)
+        self.assertEqual(filtered["Chemical name"].tolist(), ["(R)-BINAP"])
+        self.assertNotIn("Match evidence", plan["results"].columns)
 
-    def test_unfamiliar_chemical_query_reaches_live_translator(self) -> None:
-        if Chem is None:
-            self.skipTest("RDKit is not installed in this runtime.")
+    def test_unfamiliar_inventory_query_reaches_live_translator(self) -> None:
         self.register(self.reagent_payload())
         frame = self.load_inventory()
         translation = QueryTranslationResult(
             status="success",
             translation={
-                "concept": "Alcohol-containing reagent",
-                "patterns": ["[O]"],
-                "required_labels": [],
-                "explanation": "Contains oxygen.",
+                "chemical_name": None,
+                "cas_number": None,
+                "manufacturer": "Sigma-Aldrich",
+                "storage_location": None,
+                "status": "available",
+                "expiry_within_days": None,
+                "minimum_quantity": 2,
+                "maximum_quantity": None,
+                "minimum_volume_ml": None,
+                "maximum_volume_ml": None,
+                "chemical_labels": [],
             },
-            message="A chemistry search plan was proposed.",
+            message="Inventory filters were proposed.",
         )
 
-        with patch("app_v5.translate_chemical_question", return_value=translation) as call:
+        with patch("app_v5.translate_inventory_question", return_value=translation) as call:
             plan = route_natural_language_query(
-                "Do we have an alcohol-containing reagent?",
+                "Show the supplier stock that meets our current threshold.",
                 frame,
                 provider_environment={
                     "LABMIND_VISION_MODE": "live",
@@ -397,7 +410,8 @@ class AppV5HelpersTest(unittest.TestCase):
             )
 
         call.assert_called_once()
-        self.assertEqual(plan["route"], "chemical")
+        self.assertEqual(plan["route"], "inventory_filter")
+        self.assertEqual(plan["route_label"], "AI inventory filter")
         self.assertEqual(plan["results"]["Chemical name"].tolist(), ["Ethanol"])
 
     def test_file_signature_uses_contents(self) -> None:
@@ -727,9 +741,7 @@ render_extraction_step()
         self.assertEqual(len(app.exception), 0)
         self.assertEqual(len(app.text_area), 1)
 
-    def test_chemical_query_interface_renders_verified_real_database_results(self) -> None:
-        if Chem is None:
-            self.skipTest("RDKit is not installed in this runtime.")
+    def test_natural_filter_interface_renders_verified_database_results(self) -> None:
         for chemical_name, cas_number, batch_number in (
             ("(R)-BINAP", "76189-55-4", "LOT-BINAP-UI"),
             ("(S)-SEGPHOS", "210169-54-3", "LOT-SEGPHOS-UI"),
@@ -750,12 +762,12 @@ render_extraction_step()
                     receipt_key=f"test:{cas_number}:{batch_number}",
                 )
             )
-        harness = f"""
-from app_v5 import load_sample_inventory, render_natural_language_query
-render_natural_language_query(load_sample_inventory(db_path={self.database_argument()!r}))
-"""
-        app = AppTest.from_string(harness).run(timeout=20)
+        app = AppTest.from_string(
+            "from app_v5 import render_query_tab\nrender_query_tab()"
+        ).run(timeout=20)
         self.assertEqual(len(app.exception), 0)
+        app.segmented_control[0].set_value("Natural-language query")
+        app.run(timeout=20)
         app.text_area[0].set_value(
             "Do we have a chiral phosphine ligand for asymmetric reduction?"
         )
@@ -766,7 +778,11 @@ render_natural_language_query(load_sample_inventory(db_path={self.database_argum
         ).click()
         app.run(timeout=20)
         self.assertEqual(len(app.exception), 0)
-        self.assertIn("2 verified on-hand match", app.success[0].value)
+        self.assertEqual(len(app.dataframe), 1)
+        self.assertEqual(
+            set(app.dataframe[0].value["Chemical name"].tolist()),
+            {"(R)-BINAP", "(S)-SEGPHOS"},
+        )
 
     def test_modern_streamlit_style_hooks_are_present(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")
@@ -793,7 +809,8 @@ render_natural_language_query(load_sample_inventory(db_path={self.database_argum
         self.assertIn("Ready when you are.", source)
         self.assertIn("Do we have ethanol?", source)
         self.assertIn("Show reagents expiring soon.", source)
-        self.assertIn("Find chiral phosphine ligands.", source)
+        self.assertIn("Find reagents labeled as chiral ligands.", source)
+        self.assertNotIn("validated SMARTS", source)
 
     def test_inventory_results_omit_visualization_section(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")

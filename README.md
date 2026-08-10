@@ -25,10 +25,11 @@ database writes are handled by application code rather than the language model.
 - **Basic filters** search by chemical name, CAS number, record ID,
   manufacturer, storage location, quantity, volume, and expiry state.
 - **Natural-language query** interprets questions such as “Do we have ethanol?”
-  and verifies the result against the actual inventory.
-- Chemistry-concept questions can be translated into a SMARTS search plan.
-  RDKit validates and executes the plan; Gemini never claims that an item is in
-  stock by itself.
+  as an allowlisted filter object, then verifies it against the actual
+  inventory. Gemini never claims that an item is in stock by itself.
+- Natural-language filters can target names, CAS numbers, manufacturers,
+  storage locations, quantity, volume, expiry, availability, and reviewed
+  chemical labels.
 - Verified results can be exported as CSV.
 
 ## Technology
@@ -37,7 +38,6 @@ database writes are handled by application code rather than the language model.
 - Streamlit
 - SQLite
 - pandas
-- RDKit
 - Google Gemini through `google-genai`
 - Render for deployment
 

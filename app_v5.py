@@ -18,17 +18,14 @@ from backend.app_service import (
 )
 from backend.chemistry_catalog import catalog_profile
 from backend.classification_cache import get_cas_classification
-from backend.classification_service import classify_cas_with_gemini
+from backend.classification_service import (
+    CHEMICAL_LABEL_OPTIONS,
+    classify_cas_with_gemini,
+)
 from backend.provider_config import PROVIDER_ENV_NAMES
-from backend.query_translation_service import translate_chemical_question
+from backend.query_translation_service import translate_inventory_question
 from backend.safety_rules import determine_storage_location
 from backend.vision_service import extract_label_fields
-
-try:
-    from rdkit import Chem
-except ImportError:  # The UI fails closed until the chemistry runtime is installed.
-    Chem = None
-
 
 ADD_STATE_KEYS = {
     "add_file_signature",
@@ -1351,6 +1348,36 @@ def apply_theme() -> None:
             line-height: 1.5;
         }
 
+        .query-answer-card {
+            background: linear-gradient(145deg, #f4f7ff, #f8fbfc);
+            border: 1px solid rgba(25, 87, 210, .24);
+            border-radius: 20px;
+            box-shadow: 0 12px 30px rgba(20, 32, 43, .07);
+            margin: 20px 0;
+            padding: 26px 28px;
+        }
+
+        .query-answer-card .query-route {
+            font-size: 12px;
+            font-weight: 780;
+            margin-bottom: 9px;
+        }
+
+        .query-answer-title {
+            color: var(--ink);
+            font-size: clamp(24px, 2.4vw, 30px);
+            font-weight: 750;
+            letter-spacing: -.035em;
+            line-height: 1.12;
+        }
+
+        .query-answer-detail {
+            color: var(--secondary);
+            font-size: 16px;
+            line-height: 1.6;
+            margin-top: 10px;
+        }
+
         .metric-row {
             display: grid;
             gap: 12px;
@@ -1981,7 +2008,7 @@ def apply_theme() -> None:
             border: 1px solid rgba(20, 32, 43, .10) !important;
             border-radius: 17px !important;
             box-shadow: inset 0 1px 3px rgba(20, 32, 43, .05) !important;
-            max-width: 680px;
+            max-width: 720px;
             padding: 5px !important;
         }
 
@@ -1991,10 +2018,10 @@ def apply_theme() -> None:
         button[data-variant="segmented_control"] {
             border: 0 !important;
             border-radius: 12px !important;
-            font-size: 16px !important;
-            font-weight: 720 !important;
+            font-size: 18px !important;
+            font-weight: 760 !important;
             letter-spacing: -.015em;
-            min-height: 56px !important;
+            min-height: 60px !important;
         }
 
         .st-key-primary_view button[data-variant="segmented_control"][data-selected],
@@ -2131,16 +2158,27 @@ def apply_theme() -> None:
         }
 
         .st-key-query_mode {
-            margin-bottom: 8px;
-            max-width: 520px;
+            margin: 0 auto 18px;
+            max-width: 680px;
         }
 
         .st-key-query_mode [role="radiogroup"],
         .st-key-query_mode div[data-testid="stSegmentedControl"] > div {
             background: #e9eef2;
             border-color: rgba(20, 32, 43, .08);
-            border-radius: 12px;
-            padding: 4px;
+            border-radius: 15px;
+            margin: 0 auto;
+            padding: 5px;
+        }
+
+        .st-key-query_mode button[data-variant="segmented_control"],
+        .st-key-query_mode div[data-testid="stSegmentedControl"] button {
+            align-items: center;
+            font-size: 15.5px !important;
+            font-weight: 750 !important;
+            justify-content: center;
+            min-height: 54px !important;
+            text-align: center;
         }
 
         .st-key-query_mode button[data-variant="segmented_control"][data-selected],
@@ -2641,191 +2679,247 @@ def _requested_inventory_chemical(query: str, frame: pd.DataFrame) -> str | None
     return None
 
 
+def _text_filter(series: pd.Series, value: object) -> pd.Series:
+    target = _normalize_inventory_phrase(value)
+    if not target:
+        return pd.Series(True, index=series.index)
+    return series.astype(str).map(_normalize_inventory_phrase).str.contains(
+        target,
+        regex=False,
+    )
+
+
+def apply_inventory_filters(
+    frame: pd.DataFrame,
+    filters: dict[str, Any],
+) -> pd.DataFrame:
+    """Execute allowlisted inventory filters without giving the model DB authority."""
+
+    result = frame.copy()
+    chemical_name = filters.get("chemical_name")
+    if chemical_name:
+        canonical = _requested_inventory_chemical(str(chemical_name), frame)
+        if canonical:
+            result = result[
+                result["Chemical name"].astype(str).str.casefold()
+                == canonical.casefold()
+            ]
+        else:
+            result = result[_text_filter(result["Chemical name"], chemical_name)]
+    if filters.get("cas_number"):
+        result = result[_text_filter(result["CAS number"], filters["cas_number"])]
+    if filters.get("manufacturer"):
+        result = result[
+            _text_filter(result["Manufacturer"], filters["manufacturer"])
+        ]
+    if filters.get("storage_location"):
+        result = result[
+            _text_filter(result["Storage location"], filters["storage_location"])
+        ]
+
+    status = filters.get("status", "any")
+    if status == "available":
+        result = result[(result["Quantity"] > 0) & (result["Status"] != "Expired")]
+    elif status == "out_of_stock":
+        result = result[result["Quantity"] <= 0]
+    elif status == "expired":
+        result = result[
+            (result["Status"] == "Expired") | (result["Expiry state"] == "Expired")
+        ]
+    elif status == "expiring_soon":
+        result = result[result["Expiry state"] == "Expiring soon"]
+
+    if filters.get("expiry_within_days") is not None:
+        expiry_dates = pd.to_datetime(result["Expiry date"], errors="coerce")
+        today = pd.Timestamp(date.today())
+        deadline = today + pd.Timedelta(days=int(filters["expiry_within_days"]))
+        result = result[(expiry_dates >= today) & (expiry_dates <= deadline)]
+
+    numeric_filters = (
+        ("minimum_quantity", "Quantity", "minimum"),
+        ("maximum_quantity", "Quantity", "maximum"),
+        ("minimum_volume_ml", "Volume (mL)", "minimum"),
+        ("maximum_volume_ml", "Volume (mL)", "maximum"),
+    )
+    for key, column, direction in numeric_filters:
+        value = filters.get(key)
+        if value is None:
+            continue
+        if direction == "minimum":
+            result = result[result[column] >= value]
+        else:
+            result = result[result[column] <= value]
+
+    for label in filters.get("chemical_labels", []):
+        result = result[_text_filter(result["Chemical labels"], label)]
+    return result.reset_index(drop=True)
+
+
+def _filter_summary(filters: dict[str, Any]) -> list[str]:
+    labels = {
+        "chemical_name": "Chemical",
+        "cas_number": "CAS",
+        "manufacturer": "Manufacturer",
+        "storage_location": "Storage",
+        "expiry_within_days": "Expires within",
+        "minimum_quantity": "Minimum quantity",
+        "maximum_quantity": "Maximum quantity",
+        "minimum_volume_ml": "Minimum volume",
+        "maximum_volume_ml": "Maximum volume",
+    }
+    summary: list[str] = []
+    for key, label in labels.items():
+        value = filters.get(key)
+        if value is None or value == "":
+            continue
+        suffix = " days" if key == "expiry_within_days" else ""
+        suffix = " mL" if "volume" in key else suffix
+        summary.append(f"{label}: {value}{suffix}")
+    status = filters.get("status", "any")
+    if status != "any":
+        summary.append(f"Status: {status.replace('_', ' ').title()}")
+    chemical_labels = filters.get("chemical_labels", [])
+    if chemical_labels:
+        summary.append(f"Labels: {', '.join(chemical_labels)}")
+    return summary
+
+
+def _inventory_filter_plan(
+    frame: pd.DataFrame,
+    filters: dict[str, Any],
+    *,
+    ai_generated: bool,
+) -> dict[str, Any]:
+    summary = _filter_summary(filters)
+    return {
+        "route": "inventory_filter",
+        "route_label": "AI inventory filter" if ai_generated else "Inventory filter",
+        "interpretation": "Inventory filters ready",
+        "query_code": "Verified inventory filter",
+        "parameters": filters,
+        "results": apply_inventory_filters(frame, filters),
+        "warning": "",
+        "explanation": " · ".join(summary),
+        "filters": filters,
+    }
+
+
+def _fallback_inventory_filters(query: str, frame: pd.DataFrame) -> dict[str, Any]:
+    """Recognize common filters locally so basic questions do not require an API call."""
+
+    normalized = _normalize_inventory_phrase(query)
+    filters: dict[str, Any] = {
+        "chemical_name": None,
+        "cas_number": None,
+        "manufacturer": None,
+        "storage_location": None,
+        "status": "any",
+        "expiry_within_days": None,
+        "minimum_quantity": None,
+        "maximum_quantity": None,
+        "minimum_volume_ml": None,
+        "maximum_volume_ml": None,
+        "chemical_labels": [],
+    }
+    for column, key in (
+        ("Manufacturer", "manufacturer"),
+        ("Storage location", "storage_location"),
+    ):
+        if column not in frame.columns:
+            continue
+        for value in frame[column].dropna().astype(str).unique():
+            candidate = _normalize_inventory_phrase(value)
+            if candidate and candidate in normalized:
+                filters[key] = value
+                break
+
+    for label in CHEMICAL_LABEL_OPTIONS:
+        if _normalize_inventory_phrase(label) in normalized:
+            filters["chemical_labels"].append(label)
+    if any(term in normalized for term in ("chiral", "asymmetric")):
+        if "Chiral ligand" not in filters["chemical_labels"]:
+            filters["chemical_labels"].append("Chiral ligand")
+    if "phosphine" in normalized:
+        if "Phosphine ligand" not in filters["chemical_labels"]:
+            filters["chemical_labels"].append("Phosphine ligand")
+
+    if any(term in normalized for term in ("out of stock", "zero quantity")):
+        filters["status"] = "out_of_stock"
+    elif "expired" in normalized:
+        filters["status"] = "expired"
+    elif any(term in normalized for term in ("expiring soon", "expire soon")):
+        filters["status"] = "expiring_soon"
+    elif any(
+        term in normalized
+        for term in ("available", "in stock", "on hand", "do we have", "have any")
+    ):
+        filters["status"] = "available"
+
+    expiry_window = re.search(r"(?:within|next)\s+(\d+)\s+days?", normalized)
+    if expiry_window and "expir" in normalized:
+        filters["expiry_within_days"] = int(expiry_window.group(1))
+
+    maximum = re.search(
+        r"(?:below|under|less than|fewer than)\s+(\d+)\s*(?:containers?|units?)?",
+        normalized,
+    )
+    minimum = re.search(
+        r"(?:at least|minimum|more than|over)\s+(\d+)\s*(?:containers?|units?)?",
+        normalized,
+    )
+    if maximum:
+        filters["maximum_quantity"] = int(maximum.group(1))
+    if minimum:
+        filters["minimum_quantity"] = int(minimum.group(1))
+    return filters
+
+
 def compile_structured_query(query: str, frame: pd.DataFrame) -> dict[str, Any]:
-    """Compile an allowlisted inventory intent into a verified loaded-record filter."""
-    normalized = query.lower().strip()
+    """Compile direct and common inventory intents without a provider call."""
     empty = empty_inventory_result(frame)
-    if not normalized:
+    if not query.strip():
         return {
             "route": "unsupported",
             "route_label": "Needs a question",
-            "interpretation": "Enter an inventory or chemistry question to begin.",
+            "interpretation": "Enter an inventory question to begin.",
             "query_code": "",
-            "parameters": [],
+            "parameters": {},
             "results": empty,
             "warning": "",
         }
 
     requested_chemical = _requested_inventory_chemical(query, frame)
     if requested_chemical:
-        result = frame[
-            frame["Chemical name"].str.casefold() == requested_chemical.casefold()
-        ]
-        return {
-            "route": "structured",
-            "route_label": "Structured inventory query",
-            "interpretation": (
-                f"Inventory records and current availability for {requested_chemical}."
-            ),
-            "query_code": (
-                "Loaded inventory filter\n"
-                "chemical_name = ?"
-            ),
-            "parameters": [requested_chemical],
-            "results": result.reset_index(drop=True),
-            "warning": "",
+        # A named lookup shows the real record even when it is expired or empty.
+        filters = {
+            "chemical_name": requested_chemical,
+            "cas_number": None,
+            "manufacturer": None,
+            "storage_location": None,
+            "status": "any",
+            "expiry_within_days": None,
+            "minimum_quantity": None,
+            "maximum_quantity": None,
+            "minimum_volume_ml": None,
+            "maximum_volume_ml": None,
+            "chemical_labels": [],
         }
-    if "sigma" in normalized and ("low" in normalized or "below" in normalized):
-        result = frame[
-            (frame["Manufacturer"] == "Sigma-Aldrich")
-            & (frame["Quantity"] < 10)
-            & (frame["Quantity"] > 0)
-            & (frame["Status"] != "Expired")
-        ]
-        return {
-            "route": "structured",
-            "route_label": "Structured inventory query",
-            "interpretation": "On-hand Sigma-Aldrich records below 10 units.",
-            "query_code": (
-                "Loaded inventory filter\n"
-                "manufacturer = ? AND quantity < ?\n"
-                "quantity > ? AND status <> ?"
-            ),
-            "parameters": ["Sigma-Aldrich", 10, 0, "Expired"],
-            "results": result.reset_index(drop=True),
-            "warning": "",
-        }
-    if "expir" in normalized and ("30" in normalized or "soon" in normalized):
-        result = frame[
-            frame["Expiry state"].isin(["Expiring soon", "Expired"])
-        ]
-        return {
-            "route": "structured",
-            "route_label": "Structured inventory query",
-            "interpretation": "Records expired or expiring within 30 days.",
-            "query_code": (
-                "Loaded inventory filter\n"
-                "expiry_state IN (?, ?)"
-            ),
-            "parameters": [],
-            "results": result.reset_index(drop=True),
-            "warning": "",
-        }
-    if "storage" in normalized and ("count" in normalized or "group" in normalized):
-        return {
-            "route": "structured",
-            "route_label": "Structured inventory query",
-            "interpretation": "Current inventory grouped by assigned storage location.",
-            "query_code": (
-                "Loaded inventory aggregation\n"
-                "quantity > ? grouped by storage_location"
-            ),
-            "parameters": [0],
-            "results": frame[frame["Quantity"] > 0].reset_index(drop=True),
-            "warning": "",
-        }
+        return _inventory_filter_plan(frame, filters, ai_generated=False)
+
+    filters = _fallback_inventory_filters(query, frame)
+    if _filter_summary(filters):
+        return _inventory_filter_plan(frame, filters, ai_generated=False)
     return {
         "route": "unsupported",
         "route_label": "Needs clarification",
         "interpretation": (
-            "The question could not be translated into an approved inventory filter."
+            "I could not identify a supported inventory filter yet."
         ),
         "query_code": "",
-        "parameters": [],
+        "parameters": {},
         "results": empty,
-        "warning": "Try a chemical name, expiry window, manufacturer, or chemistry concept.",
+        "warning": "",
     }
-
-
-def translate_chemical_query(query: str) -> dict[str, Any] | None:
-    """Translate supported chemistry concepts into validated SMARTS templates."""
-    normalized = query.lower().strip()
-    if any(term in normalized for term in ("chiral", "asymmetric", "phosphine ligand")):
-        return {
-            "concept": "Chiral phosphine ligand",
-            "patterns": ["[P;X3]([#6])([#6])[#6]"],
-            "required_labels": ["Chiral ligand", "Phosphine ligand"],
-            "explanation": (
-                "Phosphine substructure match intersected with the cached chiral-ligand label."
-            ),
-        }
-    if any(term in normalized for term in ("protic solvent", "protic")):
-        return {
-            "concept": "Protic solvent",
-            "patterns": ["[O,S;H1]"],
-            "required_labels": ["Protic solvent"],
-            "explanation": "Heteroatom bearing an exchangeable hydrogen.",
-        }
-    if any(term in normalized for term in ("nitrile", "cyano")):
-        return {
-            "concept": "Nitrile-containing reagent",
-            "patterns": ["[C]#[N]"],
-            "required_labels": [],
-            "explanation": "Carbon–nitrogen triple-bond substructure.",
-        }
-    if "lewis acid" in normalized:
-        return {
-            "concept": "Lewis acid",
-            "patterns": ["[Ti]"],
-            "required_labels": ["Lewis acid"],
-            "explanation": "Validated structure match intersected with the CAS-level Lewis-acid label.",
-        }
-    if any(term in normalized for term in ("organometallic", "organolithium")):
-        return {
-            "concept": "Organometallic reagent",
-            "patterns": ["[Li,Na,K,Mg,Zn,Cu,Ti,Fe]-[C]"],
-            "required_labels": ["Organometallic"],
-            "explanation": "Direct metal–carbon bond with a cached organometallic label.",
-        }
-    return None
-
-
-def execute_smarts_query(
-    frame: pd.DataFrame,
-    patterns: list[str],
-    required_labels: list[str],
-) -> tuple[pd.DataFrame, int, str]:
-    """Run RDKit substructure matching, then join only to usable inventory rows."""
-    empty = empty_inventory_result(frame)
-    if Chem is None:
-        return empty, len(frame), (
-            "This chemistry search is unavailable right now. "
-            "Try a chemical name or CAS number instead."
-        )
-    query_molecules = [Chem.MolFromSmarts(pattern) for pattern in patterns]
-    if not query_molecules or any(query is None for query in query_molecules):
-        return empty, 0, (
-            "I could not verify that chemistry description. "
-            "Try a chemical name, CAS number, or a simpler feature such as 'chiral ligand'."
-        )
-
-    matched_indices: list[int] = []
-    skipped = 0
-    for index, row in frame.iterrows():
-        smiles = str(row.get("SMILES", "")).strip()
-        molecule = (
-            Chem.MolFromSmiles(smiles)
-            if smiles and smiles != "Not available"
-            else None
-        )
-        if molecule is None:
-            skipped += 1
-            continue
-        structure_matches = all(
-            molecule.HasSubstructMatch(query_molecule)
-            for query_molecule in query_molecules
-        )
-        label_text = str(row.get("Chemical labels", "")).lower()
-        labels_match = all(label.lower() in label_text for label in required_labels)
-        usable_inventory = row["Quantity"] > 0 and row["Status"] != "Expired"
-        if structure_matches and labels_match and usable_inventory:
-            matched_indices.append(index)
-
-    result = frame.loc[matched_indices].copy().reset_index(drop=True)
-    if not result.empty:
-        pattern_text = " AND ".join(patterns)
-        result["Match evidence"] = f"RDKit: {pattern_text}"
-    return result, skipped, ""
 
 
 def route_natural_language_query(
@@ -2834,56 +2928,24 @@ def route_natural_language_query(
     *,
     provider_environment: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Route known intents first, then safely translate unfamiliar chemistry."""
-    normalized = query.lower().strip()
-    if not normalized:
+    """Translate a question into allowlisted filters, then execute them locally."""
+    if not query.strip():
         return compile_structured_query(query, frame)
 
     structured_plan = compile_structured_query(query, frame)
     if structured_plan["route"] != "unsupported":
         return structured_plan
 
-    translation = translate_chemical_query(query)
-    if translation:
-        result, skipped, warning = execute_smarts_query(
-            frame,
-            translation["patterns"],
-            translation["required_labels"],
-        )
-        return {
-            "route": "chemical",
-            "route_label": "Chemical meaning query",
-            "interpretation": translation["concept"],
-            "query_code": "\n".join(translation["patterns"]),
-            "parameters": translation["required_labels"],
-            "results": result,
-            "warning": warning,
-            "explanation": translation["explanation"],
-            "skipped": skipped,
-        }
-
-    provider_result = translate_chemical_question(
+    provider_result = translate_inventory_question(
         query,
         environ=provider_environment,
     )
     if provider_result.translation:
-        translation = provider_result.translation
-        result, skipped, warning = execute_smarts_query(
+        return _inventory_filter_plan(
             frame,
-            translation["patterns"],
-            translation["required_labels"],
+            provider_result.translation,
+            ai_generated=True,
         )
-        return {
-            "route": "chemical",
-            "route_label": "Chemical meaning query",
-            "interpretation": translation["concept"],
-            "query_code": "\n".join(translation["patterns"]),
-            "parameters": translation["required_labels"],
-            "results": result,
-            "warning": warning,
-            "explanation": translation["explanation"],
-            "skipped": skipped,
-        }
     return {
         "route": "unsupported",
         "route_label": "Try a more specific question",
@@ -2891,11 +2953,12 @@ def route_natural_language_query(
             "I could not connect that question to a safe inventory search."
         ),
         "query_code": "",
-        "parameters": [],
+        "parameters": {},
         "results": empty_inventory_result(frame),
         "warning": (
-            "Ask about a chemical name, CAS number, manufacturer, expiry, quantity, "
-            "or a chemistry feature such as 'chiral ligand'."
+            provider_result.message
+            or "Include a chemical name, CAS number, manufacturer, quantity, "
+            "expiry, storage location, or chemical label."
         ),
     }
 
@@ -3901,7 +3964,7 @@ def render_basic_query(frame: pd.DataFrame) -> pd.DataFrame:
 
 def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
     query_text = st.text_area(
-        "Ask a chemistry or inventory question",
+        "Ask an inventory question",
         placeholder=(
             "Try “Do we have ethanol?”"
         ),
@@ -3915,7 +3978,7 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
             <div class="query-example-grid">
                 <span class="query-example">Do we have ethanol?</span>
                 <span class="query-example">Show reagents expiring soon.</span>
-                <span class="query-example">Find chiral phosphine ligands.</span>
+                <span class="query-example">Find reagents labeled as chiral ligands.</span>
             </div>
         </div>
         """,
@@ -3946,18 +4009,18 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
     )
     if not plan or not plan_matches_question:
         st.markdown(
-            '<div class="query-ready">Ask about a chemical, CAS number, manufacturer, expiry, quantity, or chemistry feature.</div>',
+            '<div class="query-ready">Ask about a chemical, CAS number, manufacturer, expiry, quantity, storage location, or chemical label.</div>',
             unsafe_allow_html=True,
         )
-        return empty_inventory_result(frame)
+        return frame
 
     st.markdown(
         f"""
-        <div class="order-card selected">
+        <div class="query-answer-card">
             <div class="query-route">{escaped(plan["route_label"])}</div>
-            <div class="order-name">{escaped(plan["interpretation"])}</div>
-            <div class="order-detail">
-                {escaped(plan.get("explanation", "An allowlisted plan is executed against the loaded inventory."))}
+            <div class="query-answer-title">{escaped(plan["interpretation"])}</div>
+            <div class="query-answer-detail">
+                {escaped(plan.get("explanation", "The approved filters run against reviewed inventory."))}
             </div>
         </div>
         """,
@@ -3965,23 +4028,6 @@ def render_natural_language_query(frame: pd.DataFrame) -> pd.DataFrame:
     )
     if plan.get("warning"):
         st.warning(plan["warning"])
-    if plan["route"] == "chemical" and not plan.get("warning"):
-        match_count = len(plan["results"])
-        skipped_count = int(plan.get("skipped", 0))
-        match_label = "match" if match_count == 1 else "matches"
-        skipped_label = "record" if skipped_count == 1 else "records"
-        message = (
-            f"{match_count} verified on-hand {match_label} · "
-            f"{skipped_count} structure {skipped_label} skipped"
-        )
-        if match_count:
-            st.success(message)
-        else:
-            st.markdown(
-                f'<div class="status-line neutral" role="status">'
-                f'<span class="status-dot"></span>{escaped(message)}</div>',
-                unsafe_allow_html=True,
-            )
     return plan["results"]
 
 
@@ -3990,7 +4036,7 @@ def render_query_tab() -> None:
     render_section_header(
         "Verified inventory search",
         "Search only what the lab has on hand",
-        "Use precise filters or ask a chemistry question. Every answer is checked against reviewed inventory records.",
+        "Use precise controls or let AI translate a question into reviewed inventory filters.",
     )
     mode = st.segmented_control(
         "Query mode",
@@ -4006,10 +4052,9 @@ def render_query_tab() -> None:
             results = render_basic_query(frame)
         else:
             results = render_natural_language_query(frame)
-    if mode == "Basic filters" or st.session_state.get("query_natural_plan"):
-        render_inventory_results(results, inventory_is_empty=frame.empty)
+    render_inventory_results(results, inventory_is_empty=frame.empty)
     st.markdown(
-        '<p class="quiet-note">LabMind may translate your intent, but structure, container quantity, volume, status, and expiry always come from loaded inventory records.</p>',
+        '<p class="quiet-note">AI may translate your words into filters, but container quantity, volume, status, and expiry always come from reviewed inventory records.</p>',
         unsafe_allow_html=True,
     )
 
