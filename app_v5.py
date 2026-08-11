@@ -1916,18 +1916,22 @@ def apply_theme() -> None:
             border: 0 !important;
             border-radius: 12px !important;
             font-family: inherit !important;
-            font-size: 20px !important;
-            font-weight: 800 !important;
-            letter-spacing: -.015em;
+            font-size: 19px !important;
+            font-stretch: normal !important;
+            font-weight: 700 !important;
+            letter-spacing: normal !important;
             line-height: 1.25 !important;
             min-height: 60px !important;
         }
 
-        .st-key-primary_view button[data-variant="segmented_control"] *,
-        .st-key-primary_view div[data-testid="stSegmentedControl"] button * {
+        .st-key-primary_view button[data-variant="segmented_control"] p,
+        .st-key-primary_view div[data-testid="stSegmentedControl"] button p {
             font-family: inherit !important;
-            font-size: inherit !important;
-            font-weight: inherit !important;
+            font-size: 1em !important;
+            font-stretch: normal !important;
+            font-weight: 700 !important;
+            letter-spacing: normal !important;
+            line-height: 1.25 !important;
         }
 
         .st-key-primary_view button[data-variant="segmented_control"][data-selected],
@@ -2111,19 +2115,24 @@ def apply_theme() -> None:
         .st-key-query_mode div[data-testid="stSegmentedControl"] button {
             align-items: center;
             font-family: inherit !important;
-            font-size: 18px !important;
-            font-weight: 800 !important;
+            font-size: 17px !important;
+            font-stretch: normal !important;
+            font-weight: 700 !important;
             justify-content: center;
+            letter-spacing: normal !important;
             line-height: 1.25 !important;
             min-height: 54px !important;
             text-align: center;
         }
 
-        .st-key-query_mode button[data-variant="segmented_control"] *,
-        .st-key-query_mode div[data-testid="stSegmentedControl"] button * {
+        .st-key-query_mode button[data-variant="segmented_control"] p,
+        .st-key-query_mode div[data-testid="stSegmentedControl"] button p {
             font-family: inherit !important;
-            font-size: inherit !important;
-            font-weight: inherit !important;
+            font-size: 1em !important;
+            font-stretch: normal !important;
+            font-weight: 700 !important;
+            letter-spacing: normal !important;
+            line-height: 1.25 !important;
         }
 
         .st-key-query_mode button[data-variant="segmented_control"][data-selected],
@@ -2272,7 +2281,7 @@ def apply_theme() -> None:
 
             .st-key-primary_view button[data-variant="segmented_control"],
             .st-key-primary_view div[data-testid="stSegmentedControl"] button {
-                font-size: 17px !important;
+                font-size: 16px !important;
                 min-height: 52px !important;
             }
 
@@ -2375,12 +2384,12 @@ def apply_theme() -> None:
 
             .st-key-primary_view button[data-variant="segmented_control"],
             .st-key-primary_view div[data-testid="stSegmentedControl"] button {
-                font-size: 15.5px !important;
+                font-size: 15px !important;
             }
 
             .st-key-query_mode button[data-variant="segmented_control"],
             .st-key-query_mode div[data-testid="stSegmentedControl"] button {
-                font-size: 15.5px !important;
+                font-size: 15px !important;
             }
 
             .metric-label {

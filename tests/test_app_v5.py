@@ -867,11 +867,13 @@ render_extraction_step()
 
     def test_navigation_button_typography_is_prominent_and_consistent(self) -> None:
         source = Path("app_v5.py").read_text(encoding="utf-8")
-        self.assertIn("font-size: 20px !important", source)
-        self.assertIn("font-size: 18px !important", source)
-        self.assertIn("font-weight: 800 !important", source)
+        self.assertIn("font-size: 19px !important", source)
+        self.assertIn("font-size: 17px !important", source)
+        self.assertIn("font-weight: 700 !important", source)
         self.assertIn("font-family: inherit !important", source)
-        self.assertIn("font-size: 15.5px !important", source)
+        self.assertIn("font-stretch: normal !important", source)
+        self.assertIn("letter-spacing: normal !important", source)
+        self.assertNotIn("font-weight: 800 !important", source)
 
     def test_question_suggestions_use_the_latest_inventory_wording(self) -> None:
         frame = pd.DataFrame(
