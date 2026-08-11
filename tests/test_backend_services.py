@@ -10,16 +10,6 @@ from backend.classification_cache import (
 from backend.db_init import PROJECT_ROOT
 from backend.db_utils import ReagentValidationError, insert_reagent, list_reagents
 from backend.intake_service import register_intake
-from backend.order_matching import (
-    PendingOrderConflictError,
-    PendingOrderValidationError,
-    create_pending_order,
-    import_pending_orders,
-    list_pending_orders,
-    mark_order_received,
-    match_pending_orders,
-    select_unique_order_match,
-)
 
 
 class DurableBackendServiceTests(unittest.TestCase):
@@ -91,78 +81,6 @@ class DurableBackendServiceTests(unittest.TestCase):
             )
 
         self.assertFalse(self.database_path.exists())
-
-    def test_pending_order_import_is_idempotent_and_matching_is_explainable(self) -> None:
-        order = {
-            "order_id": "PO-2026-1842",
-            "chemical_name": "Acetone",
-            "cas_number": "67-64-1",
-            "catalog_number": "A-001",
-            "specification": "ACS grade",
-            "manufacturer": "Example Chemical",
-            "quantity": 1,
-            "volume_ml": 500,
-        }
-
-        created = create_pending_order(order, self.database_path, source="csv")
-        retried = create_pending_order(order, self.database_path, source="csv")
-        candidates = match_pending_orders(self.base_reagent, self.database_path)
-        unique = select_unique_order_match(candidates)
-
-        self.assertTrue(created["created"])
-        self.assertFalse(retried["created"])
-        self.assertEqual(len(list_pending_orders(self.database_path)), 1)
-        self.assertEqual(candidates[0]["order_reference"], "PO-2026-1842")
-        self.assertEqual(candidates[0]["score"], 1.0)
-        self.assertIn("CAS exact", candidates[0]["explanation"])
-        self.assertEqual(unique["order_reference"], "PO-2026-1842")
-
-    def test_matching_refuses_ambiguous_or_conflicting_cas_candidates(self) -> None:
-        first = {
-            "order_reference": "PO-1",
-            "name": "Acetone",
-            "cas_number": "67-64-1",
-            "manufacturer": "Example Chemical",
-            "quantity": 500,
-            "quantity_unit": "mL",
-        }
-        second = {**first, "order_reference": "PO-2"}
-        import_pending_orders([first, second], self.database_path)
-
-        ambiguous = match_pending_orders(self.base_reagent, self.database_path)
-        conflicting = match_pending_orders(
-            {**self.base_reagent, "cas_number": "75-09-2"},
-            self.database_path,
-        )
-
-        self.assertEqual(len(ambiguous), 2)
-        self.assertIsNone(select_unique_order_match(ambiguous, min_score=0.7))
-        self.assertEqual(conflicting, [])
-        with self.assertRaises(PendingOrderValidationError):
-            select_unique_order_match([{"order_reference": "PO-bad", "score": "bad"}])
-
-    def test_batch_import_is_atomic_and_finalized_order_is_not_overwritten(self) -> None:
-        valid = {
-            "order_reference": "PO-VALID",
-            "name": "Acetone",
-            "cas_number": "67-64-1",
-        }
-        invalid = {"order_reference": "PO-BAD", "name": "Water", "cas_number": "7732-18-4"}
-
-        with self.assertRaises(PendingOrderValidationError):
-            import_pending_orders([valid, invalid], self.database_path)
-        self.assertFalse(self.database_path.exists())
-
-        create_pending_order(valid, self.database_path)
-        reagent_id = insert_reagent(self.base_reagent, self.database_path, confirmed=True)
-        received = mark_order_received("PO-VALID", reagent_id, self.database_path)
-
-        self.assertEqual(received["status"], "received")
-        with self.assertRaises(PendingOrderConflictError):
-            create_pending_order(
-                {**valid, "quantity": 1000},
-                self.database_path,
-            )
 
     def test_receipt_service_maps_ui_payload_and_image_key_is_idempotent(self) -> None:
         payload = {

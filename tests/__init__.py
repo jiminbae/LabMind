@@ -1,1 +1,1 @@
-"""Tests for the LabMind frontend."""
+"""Tests for the current LabMind application."""

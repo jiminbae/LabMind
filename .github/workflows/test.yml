@@ -2,9 +2,9 @@ name: Test LabMind
 
 on:
   push:
-    branches: [frontend]
+    branches: [main]
   pull_request:
-    branches: [frontend]
+    branches: [main]
 
 permissions:
   contents: read

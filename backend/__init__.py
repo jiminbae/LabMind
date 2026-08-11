@@ -1,4 +1,4 @@
-"""CSA CAS validation and durable local intake database package."""
+"""LabMind validation, intake, inventory, and AI service exports."""
 
 from .cas_validator import (
     CASValidationResult,
@@ -26,16 +26,6 @@ from .db_utils import (
     query_by_cas,
 )
 from .intake_service import IntakeServiceError, map_intake_payload, register_intake
-from .order_matching import (
-    PendingOrderConflictError,
-    PendingOrderValidationError,
-    create_pending_order,
-    import_pending_orders,
-    list_pending_orders,
-    mark_order_received,
-    match_pending_orders,
-    select_unique_order_match,
-)
 from .query_translation_service import (
     InventoryFilterTranslation,
     QueryTranslationResult,
@@ -50,26 +40,18 @@ __all__ = [
     "DatabaseMigrationError",
     "IntakeConflictError",
     "IntakeServiceError",
-    "PendingOrderConflictError",
-    "PendingOrderValidationError",
     "QueryTranslationResult",
     "ReagentValidationError",
-    "create_pending_order",
     "get_cas_classification",
     "get_schema_version",
-    "import_pending_orders",
     "init_db",
     "insert_reagent",
     "is_valid_cas",
-    "list_pending_orders",
     "list_reagents",
     "map_intake_payload",
-    "mark_order_received",
-    "match_pending_orders",
     "query_by_cas",
     "register_intake",
     "resolve_db_path",
-    "select_unique_order_match",
     "translate_inventory_question",
     "upsert_cas_classification",
     "validate_cas",
