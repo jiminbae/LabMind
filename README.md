@@ -45,6 +45,30 @@ database writes are handled by application code rather than the language model.
 The application entry point is `app.py`. The current interface is implemented
 in `app_v5.py`, and backend services are organized under `backend/`.
 
+## Repository structure
+
+```text
+LabMind/
+|-- app.py                         # Streamlit and Render entry point
+|-- app_v5.py                      # Current interface and user workflows
+|-- backend/                       # Inventory, validation, and AI services
+|   |-- app_service.py             # Interface-to-backend adapter
+|   |-- db_init.py                 # SQLite initialization and migrations
+|   |-- db_utils.py                # Validated database operations
+|   |-- classification_service.py  # Chemical-function suggestions
+|   |-- query_translation_service.py # Natural-language filter translation
+|   `-- vision_service.py          # Reagent-label image extraction
+|-- tests/                         # Unit, integration, and Streamlit tests
+|-- schema.sql                     # SQLite schema
+|-- render.yaml                    # Render deployment configuration
+|-- requirements.txt               # Python dependencies
+|-- .streamlit/                    # Theme and local secrets example
+`-- .github/workflows/test.yml     # Continuous integration on main
+```
+
+Supporting backend modules handle CAS validation, classification caching,
+provider configuration, intake, and deterministic safety rules.
+
 ## Run locally
 
 Clone the repository and enter its directory:
@@ -162,3 +186,11 @@ the core intake-and-search workflow.
 
 In short: **we used AI to implement, debug, and test; we did not let it decide
 what the product should be or treat its output as automatically correct.**
+
+## Personal reflection
+
+This project taught me that AI is most useful when it accelerates exploration,
+implementation, and debugging without owning the final decision. I learned to
+verify generated code at every frontend-backend boundary, involve teammates
+when assumptions affect their work, and remove features that function
+technically but do not create meaningful value for the user.
