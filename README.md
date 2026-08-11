@@ -189,8 +189,8 @@ what the product should be or treat its output as automatically correct.**
 
 ## Team reflection
 
-This project taught me that AI is most useful when it accelerates exploration,
-implementation, and debugging without owning the final decision. I learned to
+This project taught us that AI is most useful when it accelerates exploration,
+implementation, and debugging without owning the final decision. We learned to
 verify generated code at every frontend-backend boundary, involve teammates
 when assumptions affect their work, and remove features that function
 technically but do not create meaningful value for the user.
