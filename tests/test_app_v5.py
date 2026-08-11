@@ -34,6 +34,9 @@ from backend.db_utils import list_reagents
 from backend.query_translation_service import QueryTranslationResult
 
 
+APP_ENTRYPOINT = Path(__file__).resolve().parents[1] / "app.py"
+
+
 SINGLE_PIXEL_PNG = bytes.fromhex(
     "89504e470d0a1a0a0000000d4948445200000001000000010804000000b51c0c02"
     "0000000b4944415478da6364f80f00010501012718e3660000000049454e44ae426082"
@@ -222,7 +225,7 @@ class AppV5HelpersTest(unittest.TestCase):
 
     def test_inventory_view_renders_records_without_expiry_dates(self) -> None:
         self.register(self.reagent_payload(expiry_date=None))
-        app = AppTest.from_file("app.py").run(timeout=20)
+        app = AppTest.from_file(APP_ENTRYPOINT).run(timeout=20)
         app.segmented_control[0].set_value("Inventory search")
         app.run(timeout=20)
 
@@ -627,7 +630,7 @@ app_v5.render_storage_step()
         self.assertNotIn(">Order<", progress)
 
     def test_manual_extraction_fields_survive_stage_navigation_without_sample_data(self) -> None:
-        app = AppTest.from_file("app.py").run(timeout=20)
+        app = AppTest.from_file(APP_ENTRYPOINT).run(timeout=20)
         app.file_uploader[0].upload(
             "label.png",
             SINGLE_PIXEL_PNG,
@@ -750,7 +753,7 @@ render_extraction_step()
         self.assertIn("Some label fields", app.warning[0].value)
 
     def test_main_workspace_navigation_renders_one_view_at_a_time(self) -> None:
-        app = AppTest.from_file("app.py").run(timeout=20)
+        app = AppTest.from_file(APP_ENTRYPOINT).run(timeout=20)
         self.assertEqual(len(app.exception), 0)
         self.assertEqual(app.segmented_control[0].key, "primary_view")
         self.assertEqual(app.segmented_control[0].value, "Reagent intake")
