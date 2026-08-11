@@ -187,7 +187,7 @@ the core intake-and-search workflow.
 In short: **we used AI to implement, debug, and test; we did not let it decide
 what the product should be or treat its output as automatically correct.**
 
-## Personal reflection
+## Team reflection
 
 This project taught me that AI is most useful when it accelerates exploration,
 implementation, and debugging without owning the final decision. I learned to
